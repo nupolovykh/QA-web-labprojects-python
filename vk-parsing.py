@@ -9,13 +9,11 @@ service = Service(executable_path=PATH)
 driver = webdriver.Chrome(service=service)
 
 HREF = (r"https://vk.com/video")
-driver.get(HREF)
-driver.maximize_window()
-print('\n')
-
 try:
 	# task 1. parse sections. Nikita Polovykh 107б1
-	driver.get('https://vk.com/video')
+	driver.get(HREF)
+	driver.maximize_window()
+	print('\n')
 	time.sleep(3)
 
 	targets = ['For you', 'Trending']
