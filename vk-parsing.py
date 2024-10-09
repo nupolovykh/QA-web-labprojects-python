@@ -4,7 +4,21 @@ from selenium.webdriver.common.by import By
 import csv
 import time
 
+def get_channel_name(driver, iterator):
+	try:
+		return driver.find_element(By.XPATH, CHANNEL_XPATHS[iterator]).text
+	except Exception:
+		if(iterator > 1): return "Unkown"
+		else: return get_channel_name(driver, iterator + 1)
+
+##########################################################
+
 PATH = (r"E:\chromedriver-win64\chromedriver.exe")
+CHANNEL_XPATHS=['//*[@id="mv_main_info"]/div/div/div[2]/div[1]/div[2]/div[1]/span/span/span/span/div/div/a',
+				'//*[@id="mv_main_info"]/div/div/div[2]/div[1]/div[2]/div[1]/span/div/a',
+				'//*[@id="mv_info"]/div[1]/div/div[2]/div[1]/div[1]/div/a[1]',
+				'//*[@id="mv_info"]/div[1]/div/div[2]/div[1]/div[1]/div/a'] # this one doesnt work correctly anyway -> VK ****
+
 service = Service(executable_path=PATH)
 driver = webdriver.Chrome(service=service)
 
@@ -30,9 +44,11 @@ try:
 		try:
 			if(slink != HREF):
 				driver.get(slink)
+				time.sleep(2)
 
 			buttons = driver.find_elements(By.XPATH, f"//a[contains(@class,'VideoCard__thumbLink')]")
 			video_links = [button.get_attribute('href') for button in buttons]
+			#video_links = video_links[:16] # testing restrinction
             
 			for link in video_links:
 				driver.get(link)
@@ -47,16 +63,15 @@ try:
 					date = views_date_list[1]
 
 					likes = driver.find_element(By.XPATH, '//*[@id="mv_main_info"]/div/div/div[2]/div[2]/div/div[1]/span[2]').text
-					channel_name = driver.find_element(By.XPATH, '//*[@id="mv_main_info"]/div/div/div[2]/div[1]/div[2]/div[1]/span/div/a').text
 					subscribers = driver.find_element(By.XPATH, '//*[@id="mv_main_info"]/div/div/div[2]/div[1]/div[2]/div[2]/span').text
 
-					video_data.append([title, views, likes, date, channel_name, subscribers])
+					# place with many issues
+					channel_name = get_channel_name(driver=driver, iterator=0)
+					print(channel_name)
 
+					video_data.append([title, views, likes, date, channel_name, subscribers])
 				except Exception as video_error:
 					print(f"Error retrieving data for {link}: {video_error}")
-
-				driver.back()
-				time.sleep(2)
 
 		except Exception as section_error:
 			print(f"Error retrieving links from {slink} section: {section_error}")
