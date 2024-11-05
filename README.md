@@ -8,6 +8,7 @@
 
 ```bash
 pip install selenium
+pip install pytest
 ```
 
 Также следует предусмотреть корректное определление пути до сервера WebDriver.
@@ -24,7 +25,8 @@ pip install selenium
 
 ## Документация
 
-- [Документация библиотики для Python](https://selenium-python.readthedocs.io/)
+- [Документация библиотики Selenium для Python](https://selenium-python.readthedocs.io/)
+- [Документация библиотики Pytest для Python](https://pytest-docs-ru.readthedocs.io/ru/latest/getting-started.html)
 - [Ответы mail.ru](https://stackoverflow.com/search?q=%5Bpython%5D+and+%5Bselenium%5D)
 
 
