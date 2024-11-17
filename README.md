@@ -21,6 +21,9 @@ pip install selenium
 4. [Лабораторная работа 6: Контексты веб-страниц и взаимодействие с ними](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab6)
 5. [Лабораторная работа 7: Работа с окнами и вкладками внутри браузера](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab7)
 6. [Лабораторная работа 8: Использование задержек для работы с переводчиком + запись](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab8)
+7. [Лабораторная работа 9: Использование элементарных asssert-ов с pytest](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab9)
+8. [Лабораторная работа 10: Параметризация тестов с фикстурой](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=10)
+9. [Лабораторная работа 11: Интеграция Jenkins и GitHub Actions](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=11)
 
 ## Документация
 
