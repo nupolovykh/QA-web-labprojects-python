@@ -1,4 +1,4 @@
-pipeline {
+    pipeline {
     agent any
 
     stages {
@@ -9,14 +9,24 @@ pipeline {
         }
         stage('Install Dependencies') {
             steps {
-                sh 'pip install -r requirements.txt'
+                sh 'pip install -r lab=11/requirements.txt'
+                sh 'pip install -r lab=12/requirements.txt'
             }
         }
-        stage('Run Tests') {
+        stage('Run Tests Lab11') {
             steps {
-				sh 'pytest -v'
-                sh 'pytest --junitxml=report.xml'
-                archiveArtifacts artifacts: 'report.xml', allowEmptyArchive: true
+                sh 'pytest "lab=11/tests.py" -v'
+                sh 'pytest "lab=11/tests.py" --junitxml="lab=11/report.xml"'
+                archiveArtifacts artifacts: 'lab=11/report.xml', allowEmptyArchive: true
+            }
+        }
+        stage('Run Tests Lab12') {
+            steps {
+                sh 'uvicorn "lab=12.main:app" --host 0.0.0.0 --port 8000 &'
+                sh 'sleep 5'
+                sh 'pytest "lab=12/api_tests.py" -v'
+                sh 'pytest "lab=12/api_tests.py" --junitxml="lab=12/report.xml"'
+                archiveArtifacts artifacts: 'lab=12/report.xml', allowEmptyArchive: true
             }
         }
     }
