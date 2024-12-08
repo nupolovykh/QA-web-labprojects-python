@@ -11,6 +11,15 @@ pip install selenium
 pip install pytest
 ```
 
+А также дополнительные библиотеки для конкретных работ:
+
+```bash
+pip install fastapi
+pip install unicorn
+pip install requests
+pip install httpx
+```
+
 Также следует предусмотреть корректное определление пути до сервера WebDriver.
 ![image](https://github.com/user-attachments/assets/8c1764cd-c094-48b9-a5fd-2f7aa18940ab)
 
@@ -25,6 +34,7 @@ pip install pytest
 7. [Лабораторная работа 9: Использование элементарных asssert-ов с pytest](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab9)
 8. [Лабораторная работа 10: Параметризация тестов с фикстурой](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=10)
 9. [Лабораторная работа 11: Интеграция Jenkins и GitHub Actions](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=11)
+10. [Лабораторная работа 12: Создание и тестирования API с FastApi & Uvicorn](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=12)
 
 ## Документация
 
