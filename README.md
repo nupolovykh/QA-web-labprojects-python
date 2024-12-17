@@ -18,6 +18,8 @@ pip install fastapi
 pip install unicorn
 pip install requests
 pip install httpx
+pip install pytest-html
+pip install locust
 ```
 
 Также следует предусмотреть корректное определление пути до сервера WebDriver.
@@ -35,6 +37,8 @@ pip install httpx
 8. [Лабораторная работа 10: Параметризация тестов с фикстурой](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=10)
 9. [Лабораторная работа 11: Интеграция Jenkins и GitHub Actions](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=11)
 10. [Лабораторная работа 12: Создание и тестирования API с FastApi & Uvicorn](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=12)
+11. [Лабораторная работа 13: Создание html-отчёта с Pytest и деплой сервера нагрузочного тестирования с Locust](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=13)
+12. [Лабораторная работа 14: Применение Page Object Model в Selenium и PyTest](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=14)
 
 ## Документация
 
