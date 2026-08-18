@@ -1,5 +1,14 @@
-import math, pytest
-from functions import multiply, divide, distance, quadratic_equation, geometric_series_sum
+import math
+
+import pytest
+from functions import (
+    distance,
+    divide,
+    geometric_series_sum,
+    multiply,
+    quadratic_equation,
+)
+
 
 # Task 2: tests for the functions above
 def test_multiply():
@@ -13,7 +22,7 @@ def test_divide():
     assert divide(10, 2) == 5.0
     assert divide(5, -1) == -5.0
     assert divide(0, 10) == 0.0
-    with pytest.raises(Exception):
+    with pytest.raises(ZeroDivisionError):
         divide(1, 0)
     assert divide(7.5, 2.5) == 3.0
 
@@ -28,7 +37,7 @@ def test_quadratic_equation():
     assert quadratic_equation(1, -3, 2) == (2.0, 1.0)
     assert quadratic_equation(1, 2, 1) == (-1.0,)
     assert quadratic_equation(1, 0, -4) == (2.0, -2.0)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         quadratic_equation(1, 0, 4)
     assert quadratic_equation(2, 4, 2) == (-1.0,)
 
