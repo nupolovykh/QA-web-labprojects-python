@@ -6,6 +6,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import UnexpectedAlertPresentException, NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
+from webdriver_manager.chrome import ChromeDriverManager
 import asyncio
 import time
 import shutil
@@ -24,8 +25,7 @@ def wiki_tabs_opener(num):
 
 
 
-PATH = (r"E:\chromedriver-win64\chromedriver.exe")
-service = Service(executable_path=PATH)
+service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
 
 URL_CONVERTOR = (r"https://www.base64encode.org/")

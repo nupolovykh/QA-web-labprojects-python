@@ -6,12 +6,13 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import UnexpectedAlertPresentException, NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
+from webdriver_manager.chrome import ChromeDriverManager
 import asyncio
+import os
 import time
 import shutil
 
-PATH = (r"E:\chromedriver-win64\chromedriver.exe")
-service = Service(executable_path=PATH)
+service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
 
 URL_CONTEX = (r"https://the-internet.herokuapp.com/context_menu")
@@ -29,7 +30,7 @@ time.sleep(3)
 # this snippet break the app completely for some reason + can not make screenshot with context
  
 # try:
-# 	driver.get_screenshot_as_file("context-file.png")
+# 	driver.get_screenshot_as_file("docs/screenshot.png")
 # except Exception:
 # 	print("Can not make screenshot!")
 
@@ -44,7 +45,7 @@ time.sleep(10)
 driver.get(URL_UPLOAD)
 
 #area = driver.find_element(By.ID, "drag-drop-upload").click()
-upload_file = (r"here\was\my\path\textfile.txt")
+upload_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "textfile.txt")
 
 file_input = driver.find_element(By.CSS_SELECTOR, "input[type='file']")
 file_input.send_keys(upload_file)
@@ -52,7 +53,8 @@ driver.find_element(By.ID, "file-submit").click()
 time.sleep(3)
 
 try:
-	driver.get_screenshot_as_file("context-file.png")
+	screenshot_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "screenshot.png")
+	driver.get_screenshot_as_file(screenshot_path)
 except Exception:
 	print("Can not make screenshot!")
 

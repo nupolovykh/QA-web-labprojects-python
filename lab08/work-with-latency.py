@@ -6,6 +6,7 @@ from selenium.common.exceptions import UnexpectedAlertPresentException, NoAlertP
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
 def open_tab(url):
 	driver.switch_to.new_window('tab')
@@ -28,8 +29,7 @@ def save_switch(num):
 	except Exception as ex:
 		pass
 
-PATH = (r"E:\chromedriver-win64\chromedriver.exe")
-service = Service(executable_path=PATH)
+service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
 
 URL_VERSES = (r"https://www.culture.ru/literature/poems/author-aleksandr-pushkin")
