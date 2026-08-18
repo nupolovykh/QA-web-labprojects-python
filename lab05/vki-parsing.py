@@ -1,10 +1,12 @@
+import time
+
 from selenium import webdriver
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
-import time
 
 service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
@@ -41,7 +43,7 @@ while True:
 		)
 		loadMore.click()
 		time.sleep(2)
-	except Exception as e:
+	except WebDriverException as e:
 		print(f"Error occurred: {e}")
 		break
 
@@ -65,7 +67,7 @@ with open('result.txt', 'w', encoding='utf-8') as file:
 			file.write(f'Link: {link}\n')
 			file.write(f'Image URL: {image_url}\n\n')
 
-		except Exception as e:
+		except WebDriverException as e:
 			print(f"Error processing card: {e}")
 
 driver.quit()

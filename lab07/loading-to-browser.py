@@ -1,15 +1,11 @@
+import time
+
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import UnexpectedAlertPresentException, NoAlertPresentException
-from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
-import asyncio
-import time
-import shutil
+
 
 def open_new_tab(url):
 	driver.switch_to.new_window('tab')
@@ -51,11 +47,11 @@ for num in range(3, 13):
 		driver.switch_to.window(driver.window_handles[num])
 		title = driver.find_element(By.CLASS_NAME, 'mw-page-title-main').text
 		titles.append(title)
-	except Exception:
+	except NoSuchElementException:
 		try:
 			title = driver.find_element(By.XPATH, '//*[@id="firstHeading"]/i').text
 			titles.append(title)
-		except Exception:
+		except NoSuchElementException:
 			print("Page of error - " + str(num))
 			print("Url of error - " + driver.current_url)
 

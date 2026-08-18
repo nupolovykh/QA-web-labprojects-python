@@ -1,6 +1,20 @@
-import pytest, math
-from functions import multiply, divide, distance, quadratic_equation, geometric_series_sum, words_quantity, substring, to_upper_case
-from fixture import text_file_content
+import math
+
+import pytest
+from fixture import (
+	text_file_content,  # noqa: F401 -- used implicitly via pytest fixture injection below
+)
+from functions import (
+	distance,
+	divide,
+	geometric_series_sum,
+	multiply,
+	quadratic_equation,
+	substring,
+	to_upper_case,
+	words_quantity,
+)
+
 
 # Task 5: math function tests as a class
 class TestMathFunctions:
@@ -22,7 +36,7 @@ class TestMathFunctions:
 	])
 	def test_divide(self, a, b, expected):
 		if b == 0:
-			with pytest.raises(Exception):
+			with pytest.raises(ZeroDivisionError):
 				divide(a, b)
 		else:
 			assert divide(a, b) == expected
@@ -46,7 +60,7 @@ class TestMathFunctions:
 	])
 	def test_quadratic_equation(self, a, b, c, expected):
 		if expected is None:
-			with pytest.raises(Exception):
+			with pytest.raises(ValueError):
 				quadratic_equation(a, b, c)
 		else:
 			assert quadratic_equation(a, b, c) == expected
@@ -67,13 +81,13 @@ class TestTextFunctions:
 	@pytest.mark.parametrize("count", [
 		2,
 	])
-	def test_words_quantity(self, text_file_content : str, count: int)  -> None:
+	def test_words_quantity(self, text_file_content : str, count: int)  -> None:  # noqa: F811
 		assert words_quantity(text_file_content) == count
 
 	@pytest.mark.parametrize("expected_upper", [
 		"lyuboy text".upper(),
 	])
-	def test_to_upper_case(self, text_file_content : str, expected_upper : str)  -> None:
+	def test_to_upper_case(self, text_file_content : str, expected_upper : str)  -> None:  # noqa: F811
 		assert to_upper_case(text_file_content) == expected_upper  
 
 	@pytest.mark.parametrize("start, end, expected_substring", [
@@ -83,5 +97,5 @@ class TestTextFunctions:
 		(3, 6, "boy"),
 		(0, 11, "lyuboy text")
 	])
-	def test_substring(self, text_file_content : str, start : int, end : int, expected_substring : str) -> None:
+	def test_substring(self, text_file_content : str, start : int, end : int, expected_substring : str) -> None:  # noqa: F811
 		assert substring(text_file_content, start, end) == expected_substring
