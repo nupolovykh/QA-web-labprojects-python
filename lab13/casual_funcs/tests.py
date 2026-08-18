@@ -1,7 +1,7 @@
 import math, pytest
 from functions import multiply, divide, distance, quadratic_equation, geometric_series_sum
 
-# task 2. Tests. Nikita Polovykh 107б1
+# Task 2: tests for the functions above
 def test_multiply():
     assert multiply(2, 3) == 6
     assert multiply(-1, 5) == -5

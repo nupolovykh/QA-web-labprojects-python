@@ -5,7 +5,7 @@ from selenium.webdriver.common.by import By
 from datetime import datetime
 import time
 
-# task 1. Class POM. Nikita Polovykh 107б1
+# Task 1: Page Object Model class
 class CiNsuNewsPage:
 
 	PATH = (r"D:\hueta-programs\chromedriver-win64\chromedriver.exe")
@@ -23,7 +23,7 @@ class CiNsuNewsPage:
 
 		self.submit = self.driver.find_element(By.CLASS_NAME, "btn-success")
 
-	# task 2. Functions for tasks. Nikita Polovykh 107б1
+	# Task 2: page interaction helpers
 
 	# dates before inserted param
 	def get_page_title(self) -> str:

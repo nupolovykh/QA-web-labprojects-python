@@ -2,7 +2,7 @@ import pytest, time
 from datetime import datetime
 from ci_nsu import CiNsuNewsPage
 
-# task 3. Fixture of POM class. Nikita Polovykh 107б1
+# Task 3: fixture wrapping the POM class
 @pytest.fixture
 def news_page():
     page = CiNsuNewsPage()
@@ -12,7 +12,7 @@ def news_page():
     page.submit_offset()
     return page
 
-# task 3.5. Test of tasks functions. Nikita Polovykh 107б1
+# Task 3.5: tests exercising the POM helpers
 @pytest.mark.parametrize("expected_title", ["Все новости"])
 def test_verify_title_before(news_page, expected_title):
     assert expected_title == news_page.get_page_title()

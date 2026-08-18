@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-# task 1. API. Nikita Polovykh 107б1
+# Task 1: a small in-memory user API
 app = FastAPI()
 
 class User(BaseModel):

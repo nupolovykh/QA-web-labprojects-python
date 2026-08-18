@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from main import app
 
-# task 2. Tests for API. Nikita Polovykh 107б1
+# Task 2: tests for the API above
 client = TestClient(app)
 
 def test_read_root():

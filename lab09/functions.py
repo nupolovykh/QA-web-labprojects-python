@@ -1,6 +1,6 @@
 import math
 
-# task 1. Functions. Nikita Polovykh 107б1
+# Task 1: math/utility functions
 def multiply(a, b):
     return a * b
 
