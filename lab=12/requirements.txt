@@ -1,5 +1,0 @@
-pytest
-fastapi
-uvicorn
-requests
-httpx

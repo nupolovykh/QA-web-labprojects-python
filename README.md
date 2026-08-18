@@ -1,51 +1,62 @@
-# Python Parsing with Selenium
+# Python Web Scraping & Testing (Selenium + pytest)
 
-Этот репозиторий является площадкой для изучения парсинга веб-страниц с использованием Python и Selenium. Здесь вы найдете различные лабораторные работы, которые помогут вам освоить основы автоматизации и парсинга.
+[![CI](https://github.com/nupolovykh/QA-web-labprojects-python/actions/workflows/ci.yml/badge.svg)](https://github.com/nupolovykh/QA-web-labprojects-python/actions/workflows/ci.yml)
 
-## Установка
+> ⏹️ **Archived Coursework** — Selenium & pytest labs from a university software-testing course
 
-Для начала работы вам потребуется установить Python и необходимые библиотеки. Вы можете установить Selenium с помощью pip:
+A progression of labs on web-scraping and automated testing in Python: Selenium
+basics and page interactions, pytest fundamentals (asserts, parametrization,
+fixtures, class-based tests), CI/CD integration, FastAPI + pytest API testing,
+HTML test reporting, Locust load testing, and the Page Object Model pattern.
+
+**Tech stack:** Python, Selenium, pytest, FastAPI, Uvicorn, Locust
+
+## Labs
+
+| Lab | Topic | Location | Preview |
+|---|---|---|---|
+| 1-3 | Selenium basics: scraping python.org | [`lab01-03/`](lab01-03) | |
+| 4 | Scraping VK video listings | [`lab04/`](lab04) | |
+| 5 | Scraping ci.nsu.ru news with a date filter | [`lab05/`](lab05) | |
+| 6 | Context menus and file upload | [`lab06/`](lab06) | <img src="lab06/docs/screenshot.png" width="240" alt="lab06 screenshot"> |
+| 7 | Multi-tab/window handling | [`lab07/`](lab07) | |
+| 8 | Explicit waits + Google Translate automation | [`lab08/`](lab08) | |
+| 9 | pytest basics: plain asserts | [`lab09/`](lab09) | |
+| 10 | pytest parametrize + fixtures | [`lab10/`](lab10) | |
+| 11 | pytest + CI (GitHub Actions & Jenkins) | [`lab11/`](lab11) | |
+| 12 | FastAPI + Uvicorn API, tested with pytest | [`lab12/`](lab12) | |
+| 13 | pytest-html reporting & Locust load testing | [`lab13/`](lab13) | |
+| 14 | Page Object Model with Selenium + pytest | [`lab14/`](lab14) | |
+
+*Only `lab06` has a captured screenshot — it's the one real one the original
+coursework run produced. The rest of the Selenium labs scrape live external
+sites, and this repo's automation doesn't run them to generate previews.*
+
+## Install & run
 
 ```bash
-pip install selenium
-pip install pytest
+pip install -r requirements.txt
 ```
 
-А также дополнительные библиотеки для конкретных работ:
+ChromeDriver is managed automatically by [`webdriver-manager`](https://pypi.org/project/webdriver-manager/) —
+no manual driver download or path setup needed. Each lab is a standalone
+script or pytest suite; run a Selenium lab directly, e.g.:
 
 ```bash
-pip install fastapi
-pip install unicorn
-pip install requests
-pip install httpx
-pip install pytest-html
-pip install locust
+python lab01-03/python-parsing.py
 ```
 
-Также следует предусмотреть корректное определление пути до сервера WebDriver.
-![image](https://github.com/user-attachments/assets/8c1764cd-c094-48b9-a5fd-2f7aa18940ab)
+or run a lab's tests with pytest, e.g.:
 
-## Лабораторные-работы
+```bash
+cd lab09 && pytest
+```
 
-1. [Лабораторная работа 1-3: Основы работы с Selenium](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab1-3)
-2. [Лабораторная работа 4: Парсинг и VK-Видео](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab4)
-3. [Лабораторная работа 5: Парсинг новостей с сайта ВКИ + запись](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab5)
-4. [Лабораторная работа 6: Контексты веб-страниц и взаимодействие с ними](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab6)
-5. [Лабораторная работа 7: Работа с окнами и вкладками внутри браузера](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab7)
-6. [Лабораторная работа 8: Использование задержек для работы с переводчиком + запись](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab8)
-7. [Лабораторная работа 9: Использование элементарных asssert-ов с pytest](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab9)
-8. [Лабораторная работа 10: Параметризация тестов с фикстурой](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=10)
-9. [Лабораторная работа 11: Интеграция Jenkins и GitHub Actions](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=11)
-10. [Лабораторная работа 12: Создание и тестирования API с FastApi & Uvicorn](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=12)
-11. [Лабораторная работа 13: Создание html-отчёта с Pytest и деплой сервера нагрузочного тестирования с Locust](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=13)
-12. [Лабораторная работа 14: Применение Page Object Model в Selenium и PyTest](https://github.com/DonutsEmperor/Python-parsing-with-selenium/tree/main/lab=14)
+Some labs (`lab11`, `lab12`) also ship their own `requirements.txt` for a
+minimal, lab-scoped install.
 
-## Документация
+## Documentation
 
-- [Документация библиотики Selenium для Python](https://selenium-python.readthedocs.io/)
-- [Документация библиотики Pytest для Python](https://pytest-docs-ru.readthedocs.io/ru/latest/getting-started.html)
-- [Ответы mail.ru](https://stackoverflow.com/search?q=%5Bpython%5D+and+%5Bselenium%5D)
-
-
-
-
+- [Selenium for Python docs](https://selenium-python.readthedocs.io/)
+- [pytest docs](https://docs.pytest.org/en/stable/getting-started.html)
+- [Selenium + Python questions on Stack Overflow](https://stackoverflow.com/search?q=%5Bpython%5D+and+%5Bselenium%5D)
