@@ -35,7 +35,7 @@ driver = webdriver.Chrome(service=service)
 URL_VERSES = (r"https://www.culture.ru/literature/poems/author-aleksandr-pushkin")
 URL_TRANSLATOR = (r"https://translate.google.com")
 
-# task 1. Open translator and site with verses. Nikita Polovykh 107б1
+# Task 1: open the translator and the site with verses
 driver.get(URL_TRANSLATOR)
 open_tab(URL_VERSES)
 
@@ -48,7 +48,7 @@ verses_uls = [verse_url.get_attribute('href') for verse_url in verses_uls]
 verses_ru = []
 verses_en = []
 
-# task 2. Verses fetching. Nikita Polovykh 107б1
+# Task 2: fetch the verses
 driver.switch_to.new_window('tab')
 for verse_url in verses_uls:
 	save_get(verse_url)
@@ -56,7 +56,7 @@ for verse_url in verses_uls:
 	verses_ru.append(verse)
 driver.close()
 
-# task 3. Translation of verses. Nikita Polovykh 107б1
+# Task 3: translate the verses
 save_switch(0)
 
 tuple_textarea_ru = [(By.CLASS_NAME, 'n4sEPd'), (By.CLASS_NAME, 'er8xn')]
@@ -80,7 +80,7 @@ for verse_ru in verses_ru:
 
 driver.quit()
 
-# # task 4. Writing all verses in text-file. Nikita Polovykh 107б1
+# Task 4: write all verses to a text file
 
 with open('result.txt', 'w', encoding='utf-8') as file:
 	for i in range(8):

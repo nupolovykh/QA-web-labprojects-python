@@ -11,7 +11,7 @@ driver = webdriver.Chrome(service=service)
 
 URL = (r"https://ci.nsu.ru/news")
 
-# task 1. parse site and inputs. Nikita Polovykh 107б1
+# Task 1: open the site and locate the date inputs
 driver.get(URL)
 driver.maximize_window()
 print('\n')
@@ -22,7 +22,7 @@ inputs = driver.find_elements(By.CSS_SELECTOR, ".form-control")
 first_input = next((input for input in inputs if "C" in input.get_attribute('placeholder')), None)
 second_input = next((input for input in inputs if "По" == input.get_attribute('placeholder')), None)
 
-# task 2. paste and click form data. Nikita Polovykh 107б1
+# Task 2: fill in and submit the date range form
 
 first_input.send_keys("01.10.2020")
 second_input.send_keys("01.10.2024")
@@ -31,7 +31,7 @@ submit.click()
 
 time.sleep(3)
 
-# task 3. click "load more" news. Nikita Polovykh 107б1
+# Task 3: click "load more" until there's no more news
 
 loadMore = driver.find_element(By.CSS_SELECTOR, ".loadMoreButton")
 while True:
@@ -47,7 +47,7 @@ while True:
 
 time.sleep(3)
 
-# task 4. load more news and write in file. Nikita Polovykh 107б1
+# Task 4: write the collected news to a file
 with open('result.txt', 'w', encoding='utf-8') as file:
 	news = driver.find_elements(By.CSS_SELECTOR, '.news-card') 
 	for card in news:

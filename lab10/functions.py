@@ -1,6 +1,6 @@
 import math
 
-# task 1. Functions. Nikita Polovykh 107б1
+# Task 1: math/utility functions
 def multiply(a, b):
 	return a * b
 
@@ -33,7 +33,7 @@ def geometric_series_sum(a, r, n):
 		return a * n
 	return a * (1 - r**n) / (1 - r)
 
-# task 2. New functions. Nikita Polovykh 107б1
+# Task 2: additional text-processing functions
 def words_quantity(str: str) -> int:
 	spaces = str.count(" ")
 	if str and (str[-1] == " "):

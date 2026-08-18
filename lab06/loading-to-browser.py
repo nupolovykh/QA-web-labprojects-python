@@ -20,7 +20,7 @@ URL_UPLOAD = (r"https://the-internet.herokuapp.com/upload")
 driver.get(URL_CONTEX)
 driver.maximize_window()
 
-# task 1. Summon and submit context menu. Nikita Polovykh 107б1
+# Task 1: summon and accept the context menu
 area = driver.find_element(By.ID, "hot-spot")
 action = ActionChains(driver)
 action.context_click(area).perform()
@@ -39,7 +39,7 @@ alert.accept()
 
 time.sleep(10)
 
-# task 2. Uploading file bliendly. Nikita Polovykh 107б1
+# Task 2: upload a file
 
 driver.get(URL_UPLOAD)
 

@@ -2,7 +2,7 @@ import pytest, math
 from functions import multiply, divide, distance, quadratic_equation, geometric_series_sum, words_quantity, substring, to_upper_case
 from fixture import text_file_content
 
-# task 5. TestMathClass. Nikita Polovykh 107б1
+# Task 5: math function tests as a class
 class TestMathFunctions:
 	@pytest.mark.parametrize("a, b, expected", [
 		(2, 3, 6),
@@ -62,7 +62,7 @@ class TestMathFunctions:
 		assert pytest.approx(geometric_series_sum(a, r, n), 0.01) == expected
 		
 
-# task 6. TestTextClass. Nikita Polovykh 107б1
+# Task 6: text function tests as a class, using the file fixture
 class TestTextFunctions:
 	@pytest.mark.parametrize("count", [
 		2,

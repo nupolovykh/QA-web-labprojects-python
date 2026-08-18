@@ -31,19 +31,19 @@ driver = webdriver.Chrome(service=service)
 URL_CONVERTOR = (r"https://www.base64encode.org/")
 URLS_WIKI = [(r"https://ru.wikipedia.org"), (r"https://en.wikipedia.org")]
 
-# task 1. Open 3 separate tabs. Nikita Polovykh 107б1
+# Task 1: open 3 separate tabs
 driver.get(URL_CONVERTOR)
 for url in URLS_WIKI:
 	open_new_tab(url)
 
-# task 2. Open 5 separate random wiki pages. Nikita Polovykh 107б1
+# Task 2: open 5 separate random wiki pages
 wiki_tabs_opener(1)
 time.sleep(10)
 
 wiki_tabs_opener(2)
 time.sleep(10)
 
-# task 3. Fetch all titles of opened random tabs. Nikita Polovykh 107б1
+# Task 3: fetch all titles of opened random tabs
 
 titles = []
 for num in range(3, 13):
@@ -66,7 +66,7 @@ for _ in range(10):
 
 time.sleep(3)
 
-# task 4. Push and Fetch all titles of opened random tabs. Nikita Polovykh 107б1
+# Task 4: submit and fetch back the joined titles
 
 driver.switch_to.window(driver.window_handles[0])
 

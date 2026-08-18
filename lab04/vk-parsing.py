@@ -17,14 +17,14 @@ PATH = (r"E:\chromedriver-win64\chromedriver.exe")
 CHANNEL_XPATHS=['//*[@id="mv_main_info"]/div/div/div[2]/div[1]/div[2]/div[1]/span/span/span/span/div/div/a',
 				'//*[@id="mv_main_info"]/div/div/div[2]/div[1]/div[2]/div[1]/span/div/a',
 				'//*[@id="mv_info"]/div[1]/div/div[2]/div[1]/div[1]/div/a[1]',
-				'//*[@id="mv_info"]/div[1]/div/div[2]/div[1]/div[1]/div/a'] # this one doesnt work correctly anyway -> VK ****
+				'//*[@id="mv_info"]/div[1]/div/div[2]/div[1]/div[1]/div/a'] # last-resort fallback, unreliable on VK's current markup
 
 service = Service(executable_path=PATH)
 driver = webdriver.Chrome(service=service)
 
 HREF = (r"https://vk.com/video")
 try:
-	# task 1. parse sections. Nikita Polovykh 107б1
+	# Task 1: parse video sections
 	driver.get(HREF)
 	driver.maximize_window()
 	print('\n')
@@ -39,7 +39,7 @@ try:
 	target_set = set(targets)
 	slinks = [link.get_attribute('href') for link in links if link.text in target_set]
 
-	# task 2. parse info. Nikita Polovykh 107б1
+	# Task 2: parse video info
 	for slink in slinks:
 		try:
 			if(slink != HREF):
@@ -80,7 +80,7 @@ try:
 finally:
     driver.quit()
 
-# task 3. file filling. Nikita Polovykh 107б1
+# Task 3: write results to a CSV file
 with open('video_data.csv', mode='w', newline='', encoding='utf-8') as file:
 	writer = csv.writer(file)
 	writer.writerow(["Title", "Views", "Likes", "Creation Date", "Channel Name", "Subscribers"])
