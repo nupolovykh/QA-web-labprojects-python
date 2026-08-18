@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: lint / syntax-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Compile-check every script
+        run: |
+          python -m compileall -q .
+
+      # Informational only: the Selenium labs scrape live external sites and
+      # aren't executed here (no headless browser in CI), so this just
+      # catches lint issues without running them.
+      - name: Lint (non-blocking)
+        continue-on-error: true
+        run: ruff check .
+
+  test:
+    name: pytest (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: lab09
+            path: lab09
+            file: tests.py
+          - name: lab10
+            path: lab10
+            file: classes.py
+          - name: lab11
+            path: lab11
+            file: tests.py
+          - name: lab12
+            path: lab12
+            file: api_tests.py
+          - name: lab13-casual_funcs
+            path: lab13/casual_funcs
+            file: tests.py
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Test file names in these labs (tests.py, classes.py, api_tests.py)
+      # don't match pytest's default test_*.py/*_test.py discovery pattern,
+      # so each file is passed explicitly.
+      - name: Run tests
+        working-directory: ${{ matrix.path }}
+        run: pytest -v ${{ matrix.file }}
