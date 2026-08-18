@@ -1,6 +1,6 @@
 # Python Web Scraping & Testing (Selenium + pytest)
 
-[![CI](https://github.com/nupolovykh/Python-parsing-and-testing/actions/workflows/ci.yml/badge.svg)](https://github.com/nupolovykh/Python-parsing-and-testing/actions/workflows/ci.yml)
+[![CI](https://github.com/nupolovykh/QA-web-labprojects-python/actions/workflows/ci.yml/badge.svg)](https://github.com/nupolovykh/QA-web-labprojects-python/actions/workflows/ci.yml)
 
 > ⏹️ **Archived Coursework** — Selenium & pytest labs from a university software-testing course
 
