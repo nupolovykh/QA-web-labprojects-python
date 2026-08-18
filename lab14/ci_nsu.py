@@ -1,16 +1,19 @@
+import time
+from datetime import datetime
+from typing import ClassVar
+
 from selenium import webdriver
-from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
-from datetime import datetime
-import time
+
 
 # Task 1: Page Object Model class
 class CiNsuNewsPage:
 
 	URL = (r"https://ci.nsu.ru/news/")
-	news = []
+	news: ClassVar[list] = []
 
 	def __init__(self):
 		service = Service(ChromeDriverManager().install())
@@ -33,20 +36,19 @@ class CiNsuNewsPage:
 	def offset_date_before(self, date : datetime):
 		value = date.strftime('%d.%m.%Y')
 		self.before.send_keys(value)
-		pass
-	
+
 	# dates after inserted param
 	def offset_date_after(self, date  : datetime):
 		value = date.strftime('%d.%m.%Y')
 		self.after.send_keys(value)
-		pass
 
 	def submit_offset(self):
 		self.submit.click()
 		
 		while True:
 			btn = self.load_available()
-			if(btn is None): break
+			if btn is None:
+				break
 			btn.click()
 			time.sleep(2)
 
@@ -58,5 +60,5 @@ class CiNsuNewsPage:
 		try:
 			btn = self.driver.find_element(By.CLASS_NAME, "moreNewsList")
 			return btn
-		except(Exception):
+		except NoSuchElementException:
 			return None
