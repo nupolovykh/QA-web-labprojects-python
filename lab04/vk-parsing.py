@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 import csv
 import time
 
@@ -13,13 +14,12 @@ def get_channel_name(driver, iterator):
 
 ##########################################################
 
-PATH = (r"E:\chromedriver-win64\chromedriver.exe")
 CHANNEL_XPATHS=['//*[@id="mv_main_info"]/div/div/div[2]/div[1]/div[2]/div[1]/span/span/span/span/div/div/a',
 				'//*[@id="mv_main_info"]/div/div/div[2]/div[1]/div[2]/div[1]/span/div/a',
 				'//*[@id="mv_info"]/div[1]/div/div[2]/div[1]/div[1]/div/a[1]',
 				'//*[@id="mv_info"]/div[1]/div/div[2]/div[1]/div[1]/div/a'] # last-resort fallback, unreliable on VK's current markup
 
-service = Service(executable_path=PATH)
+service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
 
 HREF = (r"https://vk.com/video")

@@ -2,18 +2,18 @@ from selenium import webdriver
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 from datetime import datetime
 import time
 
 # Task 1: Page Object Model class
 class CiNsuNewsPage:
 
-	PATH = (r"D:\hueta-programs\chromedriver-win64\chromedriver.exe")
 	URL = (r"https://ci.nsu.ru/news/")
 	news = []
 
 	def __init__(self):
-		service = Service(executable_path=self.PATH)
+		service = Service(ChromeDriverManager().install())
 		self.driver = webdriver.Chrome(service=service)
 		self.driver.get(self.URL)
 
