@@ -1,0 +1,18 @@
+[lint]
+# Explicit selection, not ruff's implicit default - pinned alongside the
+# ruff version in requirements-dev.txt so CI lints the same rules every
+# run instead of whatever a given ruff release happens to enable by
+# default. Matches exactly what this repo was cleaned up against; expand
+# deliberately, not as a side effect of a version bump.
+select = [
+    "E4", "E7", "E9",  # pycodestyle subset
+    "F",                # pyflakes
+    "I001",             # unsorted/unformatted import block
+    "BLE001",           # blind `except Exception`
+    "S110",             # try/except/pass without logging
+    "TRY002",           # raising bare Exception
+    "B017",             # asserting a blind Exception in pytest.raises
+    "RUF012",           # mutable default for a class attribute
+    "PIE790",           # unnecessary `pass`
+    "DTZ001", "DTZ007", # naive datetime construction/parsing
+]
