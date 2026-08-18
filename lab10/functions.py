@@ -1,12 +1,13 @@
 import math
 
+
 # Task 1: math/utility functions
 def multiply(a, b):
 	return a * b
 
 def divide(a, b):
 	if b == 0:
-		raise Exception
+		raise ZeroDivisionError
 	return a / b
 
 def distance(point1, point2):
@@ -24,7 +25,7 @@ def quadratic_equation(a, b, c):
 		root = -b / (2 * a)
 		return (root,)
 	else:
-		raise Exception
+		raise ValueError("no real roots")
 
 def geometric_series_sum(a, r, n):
 	if n <= 0:

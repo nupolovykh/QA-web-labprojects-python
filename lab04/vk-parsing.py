@@ -1,16 +1,21 @@
+import csv
+import time
+
 from selenium import webdriver
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
-import csv
-import time
+
 
 def get_channel_name(driver, iterator):
 	try:
 		return driver.find_element(By.XPATH, CHANNEL_XPATHS[iterator]).text
-	except Exception:
-		if(iterator > 1): return "Unkown"
-		else: return get_channel_name(driver, iterator + 1)
+	except WebDriverException:
+		if iterator > 1:
+			return "Unkown"
+		else:
+			return get_channel_name(driver, iterator + 1)
 
 ##########################################################
 
@@ -46,7 +51,7 @@ try:
 				driver.get(slink)
 				time.sleep(2)
 
-			buttons = driver.find_elements(By.XPATH, f"//a[contains(@class,'VideoCard__thumbLink')]")
+			buttons = driver.find_elements(By.XPATH, "//a[contains(@class,'VideoCard__thumbLink')]")
 			video_links = [button.get_attribute('href') for button in buttons]
 			#video_links = video_links[:16] # testing restrinction
             
@@ -70,10 +75,10 @@ try:
 					print(channel_name)
 
 					video_data.append([title, views, likes, date, channel_name, subscribers])
-				except Exception as video_error:
+				except WebDriverException as video_error:
 					print(f"Error retrieving data for {link}: {video_error}")
 
-		except Exception as section_error:
+		except WebDriverException as section_error:
 			print(f"Error retrieving links from {slink} section: {section_error}")
 
 		driver.back()

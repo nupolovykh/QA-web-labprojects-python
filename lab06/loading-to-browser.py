@@ -1,16 +1,12 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import UnexpectedAlertPresentException, NoAlertPresentException
-from selenium.webdriver.common.keys import Keys
-from webdriver_manager.chrome import ChromeDriverManager
-import asyncio
 import os
 import time
-import shutil
+
+from selenium import webdriver
+from selenium.common.exceptions import WebDriverException
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 
 service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
@@ -55,7 +51,7 @@ time.sleep(3)
 try:
 	screenshot_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "screenshot.png")
 	driver.get_screenshot_as_file(screenshot_path)
-except Exception:
+except WebDriverException:
 	print("Can not make screenshot!")
 
 time.sleep(10)

@@ -1,12 +1,11 @@
 from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import UnexpectedAlertPresentException, NoAlertPresentException
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
+
 
 def open_tab(url):
 	driver.switch_to.new_window('tab')
@@ -18,16 +17,16 @@ def save_get(url):
 		windows_before = driver.window_handles
 		driver.get(url)
 		WebDriverWait(driver, 1).until(EC.new_window_is_opened(windows_before))
-	except Exception as ex:
-		pass
+	except TimeoutException as ex:
+		print(f"save_get: no new window opened in time: {ex}")
 
 def save_switch(num):
 	try:
 		windows_before = driver.window_handles
 		driver.switch_to.window(driver.window_handles[num])
 		WebDriverWait(driver, 1).until(EC.new_window_is_opened(windows_before))
-	except Exception as ex:
-		pass
+	except TimeoutException as ex:
+		print(f"save_switch: no new window opened in time: {ex}")
 
 service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
