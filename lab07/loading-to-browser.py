@@ -1,9 +1,15 @@
 import time
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import (
+	NoSuchElementException,
+	StaleElementReferenceException,
+	TimeoutException,
+)
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 
@@ -29,6 +35,16 @@ URLS_WIKI = [(r"https://ru.wikipedia.org"), (r"https://en.wikipedia.org")]
 
 # Task 1: open 3 separate tabs
 driver.get(URL_CONVERTOR)
+
+# base64encode.org shows a cookie-consent overlay (Quantcast Choice) a few
+# seconds after load, which blocks the #input textarea for the rest of the
+# tab's life once it appears. Dismiss it now while we're on the tab, since
+# Task 4 comes back to this same tab without reloading.
+try:
+	WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "accept-btn"))).click()
+except TimeoutException:
+	pass
+
 for url in URLS_WIKI:
 	open_new_tab(url)
 
@@ -69,7 +85,12 @@ driver.switch_to.window(driver.window_handles[0])
 titles_union = (' ').join(titles)
 driver.find_element(By.ID, 'input').send_keys(titles_union)
 driver.find_element(By.ID, 'submit_text').click()
-titles_union_base = driver.find_element(By.ID, 'output').text
+# The page re-renders #output when encoding finishes, which stales any
+# WebElement obtained before the click - re-querying inside the wait
+# condition (instead of a single find_element right after) avoids that.
+titles_union_base = WebDriverWait(driver, 10, ignored_exceptions=(StaleElementReferenceException,)).until(
+	lambda d: d.find_element(By.ID, 'output').text or False
+)
 
 print(titles_union)
 print(titles_union_base)
