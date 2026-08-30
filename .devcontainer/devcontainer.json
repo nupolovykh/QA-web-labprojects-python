@@ -1,0 +1,39 @@
+{
+  "name": "QA Web Lab Projects (Python + Selenium + Xvfb)",
+  "build": {
+    "context": "..",
+    "dockerfile": "Dockerfile"
+  },
+
+  // Root requirements.txt + requirements-dev.txt (ruff, etc.) cover most labs;
+  // lab11 and lab12 ship their own scoped requirements.txt, installed too.
+  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt -r requirements-dev.txt && (test -f lab11/requirements.txt && pip install -r lab11/requirements.txt || true) && (test -f lab12/requirements.txt && pip install -r lab12/requirements.txt || true)",
+
+  // Start the persistent Xvfb server on :99 (matches remoteEnv.DISPLAY
+  // below) so lab scripts run with plain `python lab06/...py` — no
+  // `run-headed` prefix needed. Also sanity-checks that Chrome actually
+  // launches against it before you start running labs by hand.
+  "postStartCommand": "ensure-xvfb && google-chrome-stable --version",
+
+  "forwardPorts": [8000],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "terminal.integrated.env.linux": {
+          "DISPLAY": ":99"
+        }
+      }
+    }
+  },
+
+  "remoteEnv": {
+    "DISPLAY": ":99"
+  }
+}
