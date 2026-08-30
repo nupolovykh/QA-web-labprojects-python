@@ -63,6 +63,23 @@ so a broken Chrome/Xvfb install shows up immediately instead of mid-lab.
 server (via `xdpyinfo`) and only starts one if it doesn't, so it's safe to
 call by hand too.
 
+## Seeing the browser window on your real screen
+
+On a Linux host running Wayland, the container bind-mounts your real Wayland
+socket in (`devcontainer.json`'s `mounts`, resolved per-host via
+`${localEnv:XDG_RUNTIME_DIR}` — no hardcoded UID). Chrome's wrapper (see the
+Dockerfile) detects that socket at launch and adds `--ozone-platform=wayland`,
+so it renders as a normal window on your actual desktop instead of only
+inside the invisible Xvfb buffer. No script changes, no VNC client — it's the
+same `python lab06/loading-to-browser.py` you'd already run.
+
+This is strictly additive: whenever that socket isn't there (any other host,
+CI, or the container started without the mount), the wrapper falls back to
+the existing Xvfb/`DISPLAY=:99` path unchanged. If opening this devcontainer
+on a host without `XDG_RUNTIME_DIR` set at all ever fails at container
+creation because of the mount, just delete the `mounts` block from
+`devcontainer.json` — nothing else depends on it.
+
 ## Notes
 
 - `DISPLAY=:99` is set for every shell in the container (`remoteEnv` +

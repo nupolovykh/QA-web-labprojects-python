@@ -17,6 +17,23 @@
 
   "forwardPorts": [8000],
 
+  // Bind-mount the host's real Wayland socket in, so Chrome can render as a
+  // native Wayland client (see the chrome wrapper in the Dockerfile) and its
+  // window shows up on your actual desktop instead of only inside Xvfb.
+  // ${localEnv:XDG_RUNTIME_DIR} resolves per-host at container-create time —
+  // no hardcoded UID, unlike a literal /run/user/1000/wayland-0. Only tested
+  // on a Linux host actually running Wayland. On a host without
+  // XDG_RUNTIME_DIR set at all (macOS, Windows, most cloud/Codespaces
+  // runners), this mount entry is known to be a real portability risk: if
+  // podman/docker refuses to create the container over a missing bind
+  // source, remove this "mounts" block entirely rather than fighting it —
+  // Chrome's wrapper (see Dockerfile) already falls back to Xvfb whenever
+  // WAYLAND_DISPLAY/XDG_RUNTIME_DIR aren't wired up, so nothing else here
+  // depends on this mount succeeding.
+  "mounts": [
+    "source=${localEnv:XDG_RUNTIME_DIR}/wayland-0,target=/tmp/wayland-host/wayland-0,type=bind"
+  ],
+
   "customizations": {
     "vscode": {
       "extensions": [
@@ -34,6 +51,8 @@
   },
 
   "remoteEnv": {
-    "DISPLAY": ":99"
+    "DISPLAY": ":99",
+    "WAYLAND_DISPLAY": "wayland-0",
+    "XDG_RUNTIME_DIR": "/tmp/wayland-host"
   }
 }

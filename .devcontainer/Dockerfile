@@ -26,6 +26,9 @@ RUN grep -rl "yarnpkg" /etc/apt/sources.list.d/ 2>/dev/null | xargs -r rm -f \
         libnss3 \
         libxss1 \
         libasound2 \
+        libwayland-client0 \
+        libwayland-egl1 \
+        libxkbcommon0 \
     && wget -q -O /etc/apt/trusted.gpg.d/google-chrome.gpg.asc https://dl-ssl.google.com/linux/linux_signing_key.pub \
     && gpg --dearmor -o /etc/apt/trusted.gpg.d/google-chrome.gpg /etc/apt/trusted.gpg.d/google-chrome.gpg.asc \
     && echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
@@ -46,9 +49,22 @@ RUN grep -rl "yarnpkg" /etc/apt/sources.list.d/ 2>/dev/null | xargs -r rm -f \
 # separate, unrelated crash class from /dev/shm defaulting to 64MB in
 # containers, which Chrome's shared memory usage can exceed.
 RUN mv /opt/google/chrome/chrome /opt/google/chrome/chrome-real \
-    && printf '#!/usr/bin/env bash\nexec /opt/google/chrome/chrome-real --no-sandbox --disable-dev-shm-usage "$@"\n' \
-        > /opt/google/chrome/chrome \
-    && chmod +x /opt/google/chrome/chrome
+    && cat > /opt/google/chrome/chrome <<'SCRIPT'
+#!/usr/bin/env bash
+# If the host's real Wayland socket is bind-mounted in (devcontainer.json's
+# "mounts" + remoteEnv WAYLAND_DISPLAY/XDG_RUNTIME_DIR below), render as a
+# native Wayland client so the window shows up on the real desktop instead
+# of only inside the virtual Xvfb display. Falls back to the default (X11
+# via DISPLAY=:99 / Xvfb) whenever that socket isn't there - another dev's
+# machine, CI, a non-Wayland host, or the container started without the
+# mount - so this is an enhancement, never a hard requirement.
+if [ -n "$WAYLAND_DISPLAY" ] && [ -S "${XDG_RUNTIME_DIR:-/tmp}/$WAYLAND_DISPLAY" ]; then
+    exec /opt/google/chrome/chrome-real --no-sandbox --disable-dev-shm-usage --ozone-platform=wayland "$@"
+else
+    exec /opt/google/chrome/chrome-real --no-sandbox --disable-dev-shm-usage "$@"
+fi
+SCRIPT
+RUN chmod +x /opt/google/chrome/chrome
 
 # Persist an X display number all shells in the container agree on.
 ENV DISPLAY=:99
@@ -117,5 +133,11 @@ if ! DISPLAY="$DISPLAY" wmctrl -m >/dev/null 2>&1; then
 fi
 SCRIPT
 RUN chmod +x /usr/local/bin/ensure-xvfb
+
+# Bind-mount target for the host's Wayland socket (see devcontainer.json).
+# Must pre-exist as a file, not a directory, for podman/docker to bind-mount
+# a single socket file onto it correctly instead of creating a directory.
+RUN mkdir -p /tmp/wayland-host \
+    && touch /tmp/wayland-host/wayland-0
 
 WORKDIR /workspaces/QA-web-labprojects-python
