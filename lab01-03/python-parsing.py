@@ -12,7 +12,7 @@ driver.maximize_window()
 print('\n')
 
 # Task 2: fetch the header image src
-imageLink = driver.find_element(By.XPATH, '//h1//img').get_property('src')
+imageLink = driver.find_element(By.XPATH, '//img[@class="python-logo"]').get_property('src')
 print('<img> src => ' + imageLink)
 print('\n')
 
@@ -31,7 +31,7 @@ for h2 in h2TextList:
 print('\n')
 
 # Task 5: fetch navigation menu links
-aLinkList = driver.find_element(By.CSS_SELECTOR, '[class="navigation menu"]').find_elements(By.TAG_NAME, 'a')
+aLinkList = driver.find_element(By.CSS_SELECTOR, '[aria-label="Main Navigation"]').find_elements(By.TAG_NAME, 'a')
 
 for a in aLinkList:
     print('<a> href => ' + a.get_property('href'))
