@@ -1,19 +1,33 @@
 name: Dependabot auto-merge
 
-# CI runs on the pull request itself; this workflow waits for that run to finish
-# and merges only when it passed. It cannot be done from the pull_request event:
-# a run raised by Dependabot gets a read-only token, so the merge has to happen
-# from a workflow_run job, which executes in the context of the default branch
-# with write access.
+# Dependency updates are raised against security-features-main and reach main
+# through one reviewed merge. This job is what moves them onto that branch, and
+# it merges nothing that CI has not passed.
 #
-# There is no semver filter. A bump that breaks the build fails CI and is
-# therefore never merged — the same outcome as filtering patch/minor, by a
-# shorter and more honest route.
+# It cannot run from the pull_request event: a run raised by Dependabot gets a
+# read-only token. workflow_run executes in the default branch's context with
+# write access, which is what makes the merge possible.
+#
+# The schedule is not decoration. Two things make a green pull request sit here
+# forever otherwise:
+#
+#   * workflow_run is delivered with the run's conclusion attached, and that
+#     conclusion is occasionally not yet final. The job is then skipped by its
+#     own condition and nothing ever re-raises the event. One pull request was
+#     lost that way and had to be merged by hand.
+#   * a pull request that conflicts today usually stops conflicting once the
+#     branch ahead of it lands, but nothing re-triggers it.
+#
+# So the merge logic does not trust a single event: on every trigger it looks at
+# every open dependency pull request and merges whichever ones are ready.
 
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,28 +35,64 @@ permissions:
 
 jobs:
   auto-merge:
+    # On a workflow_run trigger, ignore runs that have nothing to do with a
+    # Dependabot pull request. The run's conclusion is deliberately not checked:
+    # it is read per pull request below, from the checks themselves, so a stale
+    # or missing conclusion in the event payload cannot drop anything.
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.actor.login == 'dependabot[bot]'
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.actor.login == 'dependabot[bot]')
     runs-on: ubuntu-latest
     steps:
-      - name: Merge the pull request if it targets the dependency branch
+      - name: Merge every dependency pull request whose checks have passed
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           REPO: ${{ github.repository }}
         run: |
-          number=$(gh api "repos/$REPO/commits/$HEAD_SHA/pulls" \
-            --jq '.[]
-                  | select(.state == "open")
-                  | select(.base.ref == "security-features-main")
-                  | .number' | head -n1)
+          set -uo pipefail
 
-          if [ -z "$number" ]; then
-            echo "No open pull request against security-features-main for $HEAD_SHA."
+          open=$(gh pr list --repo "$REPO" --base security-features-main --state open \
+                   --json number,headRefName,headRefOid,mergeable \
+                   --jq '.[]
+                         | select(.headRefName | startswith("dependabot/"))
+                         | "\(.number)\t\(.headRefOid)\t\(.mergeable)"')
+
+          if [ -z "$open" ]; then
+            echo "No open dependency pull requests."
             exit 0
           fi
 
-          echo "CI passed on $HEAD_SHA; merging #$number into security-features-main."
-          gh pr merge --squash --delete-branch --repo "$REPO" "$number"
+          while IFS=$'\t' read -r number sha mergeable; do
+            [ -n "$number" ] || continue
+
+            if [ "$mergeable" = "CONFLICTING" ]; then
+              echo "#$number conflicts with the base branch; leaving it for Dependabot to rebase."
+              continue
+            fi
+
+            # A pull request's own checks, minus this job. Anything still running
+            # means "come back later", not "reject".
+            checks=$(gh api "repos/$REPO/commits/$sha/check-runs" --paginate \
+                       --jq '.check_runs[] | select(.name != "auto-merge") | "\(.status):\(.conclusion)"')
+
+            if [ -z "$checks" ]; then
+              echo "#$number has no checks yet; skipping."
+              continue
+            fi
+            if grep -qv '^completed:' <<<"$checks"; then
+              echo "#$number still has checks running; skipping."
+              continue
+            fi
+            if grep -qvE '^completed:(success|skipped|neutral)$' <<<"$checks"; then
+              echo "#$number has a failing check; leaving it open."
+              continue
+            fi
+
+            echo "#$number passed its checks on $sha; merging."
+            if ! gh pr merge --squash --delete-branch --repo "$REPO" "$number"; then
+              # Losing a race with another merge in the same run is normal and
+              # is not a reason to fail the workflow: the next trigger retries.
+              echo "::warning::merging #$number did not succeed; it will be retried on the next run."
+            fi
+          done <<<"$open"

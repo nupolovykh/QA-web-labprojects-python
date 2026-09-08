@@ -1,0 +1,58 @@
+name: Sync the dependency branch
+
+# security-features-main is where dependency updates accumulate before they
+# reach main. It has to follow main, and nothing was making it do so.
+#
+# The cost of that gap, measured rather than imagined: the branch was a snapshot
+# taken before a workflow fix landed on main, and because a pull_request run
+# uses the workflow file from the branch under test, six Dependabot pull
+# requests ran no CI at all — the auto-merge gate had nothing to wait for and
+# they simply sat there. Syncing by hand is worse than not syncing: a reset
+# throws away updates the gate has already merged onto the branch.
+#
+# So: merge, never reset, and do it on every push to main.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge main into the dependency branch
+        run: |
+          set -euo pipefail
+
+          git config user.name "Nikita Polovykh"
+          git config user.email "96892429+nupolovykh@users.noreply.github.com"
+
+          if ! git ls-remote --exit-code --heads origin security-features-main >/dev/null; then
+            echo "security-features-main does not exist yet; creating it from main."
+            git push origin "HEAD:refs/heads/security-features-main"
+            exit 0
+          fi
+
+          git fetch origin security-features-main
+          git checkout -B security-features-main origin/security-features-main
+
+          if git merge-base --is-ancestor "$GITHUB_SHA" HEAD; then
+            echo "The dependency branch already contains this commit."
+            exit 0
+          fi
+
+          # A conflict here is a real disagreement between a merged dependency
+          # update and a change on main, and wants a person rather than a
+          # strategy flag — so let the job fail loudly instead of guessing.
+          git merge --no-edit "$GITHUB_SHA" \
+            -m "Merge main into the dependency branch"
+
+          git push origin security-features-main
