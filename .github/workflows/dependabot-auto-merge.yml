@@ -52,21 +52,25 @@ jobs:
         run: |
           set -uo pipefail
 
-          open=$(gh pr list --repo "$REPO" --base security-features-main --state open \
-                   --json number,headRefName,headRefOid,mergeable \
+          # Listed over REST rather than with "gh pr list": that command goes
+          # through GraphQL, which the workflow token is refused on with
+          # "Resource not accessible by integration (HTTP 403)".
+          open=$(gh api --paginate \
+                   "repos/$REPO/pulls?state=open&base=security-features-main&per_page=100" \
                    --jq '.[]
-                         | select(.headRefName | startswith("dependabot/"))
-                         | "\(.number)\t\(.headRefOid)\t\(.mergeable)"')
+                         | select(.head.ref | startswith("dependabot/"))
+                         | "\(.number)\t\(.head.sha)"')
 
           if [ -z "$open" ]; then
             echo "No open dependency pull requests."
             exit 0
           fi
 
-          while IFS=$'\t' read -r number sha mergeable; do
+          while IFS=$'\t' read -r number sha; do
             [ -n "$number" ] || continue
 
-            if [ "$mergeable" = "CONFLICTING" ]; then
+            mergeable=$(gh api "repos/$REPO/pulls/$number" --jq '.mergeable_state')
+            if [ "$mergeable" = "dirty" ]; then
               echo "#$number conflicts with the base branch; leaving it for Dependabot to rebase."
               continue
             fi
@@ -90,7 +94,15 @@ jobs:
             fi
 
             echo "#$number passed its checks on $sha; merging."
-            if ! gh pr merge --squash --delete-branch --repo "$REPO" "$number"; then
+
+            # REST for the same reason as the listing above: the GraphQL
+            # endpoints behind "gh pr merge" are refused to this token.
+            if gh api --method PUT "repos/$REPO/pulls/$number/merge" \
+                 -f merge_method=squash -f sha="$sha" >/dev/null; then
+              ref=$(gh api "repos/$REPO/pulls/$number" --jq '.head.ref')
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$ref" >/dev/null \
+                || echo "::warning::merged #$number but could not delete $ref."
+            else
               # Losing a race with another merge in the same run is normal and
               # is not a reason to fail the workflow: the next trigger retries.
               echo "::warning::merging #$number did not succeed; it will be retried on the next run."
