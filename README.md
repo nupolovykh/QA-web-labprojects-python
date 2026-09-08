@@ -191,6 +191,25 @@ from it. `ai-tests.py` is its working replacement.
 Some labs (`lab11`, `lab12`) also ship their own `requirements.txt` for a
 minimal, lab-scoped install.
 
+## Dependency updates
+
+Dependabot runs weekly against the root requirements and the two lab-scoped ones,
+one pull request per package, and none of them target `main`. They are opened
+against `security-features-main`, a long-lived branch that exists only to
+accumulate dependency bumps, and are merged into it automatically once CI passes
+on the pull request. That branch is merged into `main` by hand, so `main` gains
+one deliberate merge instead of a stream of bot commits.
+
+Configuration: [`.github/dependabot.yml`](.github/dependabot.yml) (`target-branch`)
+and [`.github/workflows/dependabot-auto-merge.yml`](.github/workflows/dependabot-auto-merge.yml).
+
+Two consequences worth knowing:
+
+- Setting `target-branch` disables Dependabot *security* updates for these
+  configurations. Advisories still appear as alerts on `main` and are acted on by hand.
+- `security-features-main` drifts from `main` as `main` moves. Merge `main` into it
+  before taking it back, or the eventual merge arrives with conflicts.
+
 ## Documentation
 
 - [Selenium for Python docs](https://selenium-python.readthedocs.io/)

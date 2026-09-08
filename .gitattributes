@@ -1,0 +1,13 @@
+# Normalise line endings on commit.
+* text=auto eol=lf
+
+# Binary, never normalised.
+*.png binary
+*.jpg binary
+*.gif binary
+
+# Linguist counted this repository as one third HTML. That HTML is a single file:
+# lab13/casual_funcs/report.html, the output of a pytest-html run kept as evidence
+# that the lab ran. It is generated, not written, and should not drive the language
+# bar for a Python repository.
+lab13/casual_funcs/report.html linguist-generated
