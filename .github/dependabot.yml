@@ -1,24 +1,36 @@
 version: 2
+
+# Every configuration targets `security-features-main` rather than main, so no
+# dependency pull request is ever raised against the branch people read. The
+# auto-merge workflow lands them on that branch only after CI has passed; the
+# branch is merged into main by hand.
+#
+# Consequence: target-branch disables Dependabot security updates for these
+# configurations. Advisories still surface as alerts on main.
 updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
+    target-branch: "security-features-main"
     open-pull-requests-limit: 5
 
   - package-ecosystem: "pip"
     directory: "/lab11"
     schedule:
       interval: "weekly"
+    target-branch: "security-features-main"
     open-pull-requests-limit: 5
 
   - package-ecosystem: "pip"
     directory: "/lab12"
     schedule:
       interval: "weekly"
+    target-branch: "security-features-main"
     open-pull-requests-limit: 5
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    target-branch: "security-features-main"
