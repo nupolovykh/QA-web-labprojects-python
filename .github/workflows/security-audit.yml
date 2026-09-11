@@ -1,0 +1,50 @@
+name: Security audit
+
+# Deliberately NOT part of CI.
+#
+# `pip-audit` answers a question about the global advisory database, not about
+# the commit under test. A newly published advisory turns every open pull request
+# red at once — including the very bump that fixes it — and in a repository where
+# green CI is what merges updates, that stops the updates from landing exactly
+# when they matter most. Here it reports on a schedule and blocks nothing.
+#
+# It is also the one workflow that speaks about `main` itself. Dependabot's
+# security updates ignore `target-branch` and never enter the `deps` flow, so a
+# red run here is the signal that main needs a human.
+
+on:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pip:
+    name: pip-audit (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: root
+            requirements: requirements.txt
+          - name: lab11
+            requirements: lab11/requirements.txt
+          - name: lab12
+            requirements: lab12/requirements.txt
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install --upgrade pip pip-audit
+
+      # Audits the pinned requirements rather than an installed environment, so
+      # a lab that cannot install on a runner is still covered.
+      - name: Audit
+        run: pip-audit --requirement "${{ matrix.requirements }}" --strict

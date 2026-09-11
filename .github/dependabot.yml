@@ -1,36 +1,58 @@
+# Version updates land on `deps`, never on main. Each pull request merges itself
+# once CI is green on that exact commit; the collected result reaches main only
+# through one promotion pull request that a human merges.
+#
+# Deliberately UNGROUPED. With one pull request per bump, a bump that breaks the
+# build blocks only itself and the rest still land. Inside a group, one bad
+# member holds back every good one, and nobody is watching to split it out.
+#
+# 99 means "no limit". Every update lands on `deps` and never on main, and one
+# that fails CI stays an open pull request against that branch, where it blocks
+# nothing. The key cannot be dropped to mean "unlimited": omitting it applies
+# Dependabot's default of 5, and 0 switches version updates off altogether.
+#
+# Weekly, not daily: nothing here is urgent enough to justify seven times the
+# noise. Security advisories are the exception and they do not obey this file —
+# see docs/dependency-updates.md.
 version: 2
 
-# Every configuration targets `security-features-main` rather than main, so no
-# dependency pull request is ever raised against the branch people read. The
-# auto-merge workflow lands them on that branch only after CI has passed; the
-# branch is merged into main by hand.
-#
-# Consequence: target-branch disables Dependabot security updates for these
-# configurations. Advisories still surface as alerts on main.
 updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-    target-branch: "security-features-main"
-    open-pull-requests-limit: 5
+    target-branch: "deps"
+    open-pull-requests-limit: 99
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "build(deps)"
 
   - package-ecosystem: "pip"
     directory: "/lab11"
     schedule:
       interval: "weekly"
-    target-branch: "security-features-main"
-    open-pull-requests-limit: 5
+    target-branch: "deps"
+    open-pull-requests-limit: 99
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "build(deps)"
 
   - package-ecosystem: "pip"
     directory: "/lab12"
     schedule:
       interval: "weekly"
-    target-branch: "security-features-main"
-    open-pull-requests-limit: 5
+    target-branch: "deps"
+    open-pull-requests-limit: 99
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "build(deps)"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    target-branch: "security-features-main"
+    target-branch: "deps"
+    open-pull-requests-limit: 99
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "ci(actions)"
