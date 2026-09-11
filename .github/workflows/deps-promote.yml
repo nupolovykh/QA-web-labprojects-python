@@ -1,38 +1,24 @@
 name: Dependency promotion
 
-# Carries what collected on `deps` back into main, as one pull request a human
-# merges — and puts `deps` back where it belongs afterwards.
+# Carries what `deps` collected back into main as one PR a human merges, then
+# re-cuts `deps` from main afterward.
 #
-# WHY THERE IS NO main -> deps MERGE HERE
+# No main -> deps merge: `deps` only ever holds bot commits, which are
+# regenerable (reset it and Dependabot re-raises the same bumps), whereas
+# merging main into it would hit lockfile conflicts on almost every line, with
+# a human left to resolve a generated file by hand on a branch nobody watches.
+# The guard below keeps that assumption true — one human commit on `deps` and
+# this workflow refuses to reset anything.
 #
-# The obvious design keeps the branch level by merging main into it. That design
-# fails, and fails predictably: `deps` exists to change lockfiles, main changes
-# lockfiles too, and lockfiles conflict on almost every line. GitHub's merge API
-# answers 409, no token changes that, and a human has to sit down and resolve a
-# generated file by hand — on an archive nobody is watching.
-#
-# `deps` does not need merging, because it holds nothing worth keeping. Every
-# commit on it is a bot commit, and every bot commit is REGENERABLE: reset the
-# branch and Dependabot re-reads the manifest, sees the old versions and raises
-# the same bumps again on its next scan. So the branch is disposable by
-# construction, and the way to realign it is to throw it away and re-cut it from
-# main. No merge, no conflict, no human.
-#
-# That property is only true while `deps` really is bot-only. The guard below is
-# what keeps it true: a single human commit on that branch and this workflow
-# refuses to reset anything and says so, rather than destroying work.
-#
-# Like the auto-merge gate, this workflow never checks out. Everything is API
-# calls, so there is no working tree and no on-disk script for a push to `deps`
-# to poison, and no `ref:` pin is needed to make that safe.
+# No checkout here either, same reason as the auto-merge gate: no working tree
+# for a push to `deps` to poison.
 
 on:
   schedule:
     - cron: "23 6 * * *"
   workflow_dispatch:
-  # A push to main is the amend case and the merged-promotion case: both need
-  # `deps` realigned. A push to `deps` by GITHUB_TOKEN raises no event, which is
-  # why the auto-merge gate dispatches this workflow directly instead.
+  # A push to main covers both the amend case and the merged-promotion case;
+  # `deps` needs realigning either way.
   push:
     branches: [main]
 
@@ -50,15 +36,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.DEPS_PAT }}
       REPO: ${{ github.repository }}
       DEPS_BRANCH: deps
       BASE_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
       CI_WORKFLOW: ci.yml
-      # On a force-push to main — which is what `git commit --amend` produces —
-      # this is the tip main had before the rewrite. It is the only reliable way
-      # to tell "this human commit on deps is main's own amended-away history"
-      # from "somebody committed to deps by hand". Empty on every other event.
+      # main's pre-rewrite tip on a force-push (what `git commit --amend`
+      # produces) — the only way to tell "deps just holds main's replaced
+      # history" from "someone committed to deps by hand". Empty otherwise.
       FORCED_BEFORE: ${{ (github.event_name == 'push' && github.event.forced) && github.event.before || '' }}
     steps:
       - name: Promote, or realign the branch
@@ -99,29 +84,24 @@ jobs:
           compare=$(gh api "repos/$REPO/compare/${BASE_BRANCH}...${DEPS_BRANCH}")
           status=$(jq -r '.status' <<<"$compare")
           ahead_by=$(jq -r '.ahead_by' <<<"$compare")
-          # ahead_by counts commits, not content. What matters for a human's review
-          # is the diff that would actually land on main.
+          # ahead_by counts commits, not content; files_changed is what matters for review.
           files_changed=$(jq -r '(.files // []) | length' <<<"$compare")
           number=$(find_open_pr)
 
           echo "${DEPS_BRANCH} is '${status}' relative to ${BASE_BRANCH}: ${ahead_by} commit(s), ${files_changed} file(s) changed."
 
-          # Commits on deps that main does not have. Anything not written by a bot
-          # means the disposability assumption no longer holds.
+          # Any commit on deps not written by a bot breaks the disposability assumption.
           bot_filter='(.author.login // "") as $l | select($l != "dependabot[bot]" and $l != "github-actions[bot]")'
           nonbot=$(jq -r "[ .commits[] | ${bot_filter} | \"\\(.sha[0:7]) \\(.commit.author.name): \\(.commit.message | split(\"\\n\")[0])\" ] | .[]" <<<"$compare")
           nonbot_shas=$(jq -r "[ .commits[] | ${bot_filter} | .sha ] | .[]" <<<"$compare")
 
-          # Is every non-bot commit on deps simply main's own pre-amend history?
-          # If so the branch is not carrying anyone's work — it is holding the
-          # commits main just rewrote away — and re-cutting it is the repair, not
-          # a loss. Anything else and we refuse below.
+          # True only if every non-bot commit on deps is main's own pre-amend
+          # history (nothing of anyone's is actually being carried).
           amend_debris=false
           if [ -n "$nonbot_shas" ] && [ -n "$FORCED_BEFORE" ]; then
             amend_debris=true
             for sha in $nonbot_shas; do
-              # compare(base=sha, head=old_tip): 'identical' or 'ahead' means sha
-              # was part of the history main had before the rewrite.
+              # identical/ahead means sha predates the rewrite.
               rel=$(gh api "repos/$REPO/compare/${sha}...${FORCED_BEFORE}" --jq '.status' 2>/dev/null || echo unknown)
               case "$rel" in
                 identical|ahead) ;;
@@ -138,11 +118,9 @@ jobs:
               ;;
 
             behind)
-              # main moved ahead and deps is an ancestor of it — the ordinary case
-              # after the promotion pull request is merged with a merge commit.
-              # force=false makes GitHub refuse anything that is not a
-              # fast-forward, which is the guard doing its job if the auto-merge
-              # gate landed something between the compare and this call.
+              # The ordinary case after the promotion PR merges with a merge commit.
+              # force=false refuses anything that isn't a fast-forward, guarding
+              # against the auto-merge gate landing something mid-call.
               if gh api -X PATCH "repos/$REPO/git/refs/heads/${DEPS_BRANCH}" \
                    -f "sha=${base_sha}" -F "force=false" >/dev/null 2>&1; then
                 echo "Fast-forwarded ${DEPS_BRANCH} to ${base_sha:0:7}."
@@ -155,10 +133,9 @@ jobs:
 
             diverged)
               if [ -n "$nonbot" ] && [ "$amend_debris" = true ]; then
-                # main was amended. The "human" commits stranded here are the tip
-                # main itself just replaced, so nothing of anyone's is on this
-                # branch. Re-cut it; the bot commits it also held come back on
-                # Dependabot's next scan.
+                # main was amended; the stranded commits are just its replaced tip,
+                # not real work. Re-cut deps; its bot commits come back on Dependabot's
+                # next scan.
                 echo "::notice::${BASE_BRANCH} was amended; ${DEPS_BRANCH} still points at the replaced history."
                 jq -r '.commits[] | "  dropped: " + (.commit.message | split("\n")[0])' <<<"$compare"
                 reset_deps
@@ -191,20 +168,15 @@ jobs:
               fi
 
               if [ "$files_changed" -eq 0 ]; then
-                # The promotion was merged by squash or rebase, so main carries the
-                # same tree under different commits. Routine; realign quietly.
+                # Squash/rebase merge landed the same tree under different commits.
                 echo "${BASE_BRANCH} already contains everything on ${DEPS_BRANCH}."
                 reset_deps
                 close_pr "$number"
                 exit 0
               fi
 
-              # main was amended (or force-pushed) while deps held bumps that had
-              # not been promoted. Those bumps are bot commits, so they cost
-              # nothing to drop: Dependabot re-reads the manifest on ${DEPS_BRANCH}
-              # after the reset, finds the old versions and raises them again.
-              # Realigning is strictly better than leaving a branch nothing can
-              # merge and nothing can promote.
+              # main moved while deps held unpromoted bot bumps — dropping them costs
+              # nothing, Dependabot re-raises them from the manifest on its next scan.
               echo "::warning::${BASE_BRANCH} was rewritten while ${DEPS_BRANCH} held ${ahead_by} unpromoted bump(s)."
               echo "Dropping them and re-cutting the branch; Dependabot re-raises them on its next scan."
               jq -r '.commits[] | "  dropped: " + (.commit.message | split("\n")[0])' <<<"$compare"
@@ -221,7 +193,7 @@ jobs:
               ;;
           esac
 
-          # status == ahead: deps sits on top of main with updates to promote.
+          # deps sits ahead of main with updates to promote.
           if [ "$files_changed" -eq 0 ]; then
             echo "${ahead_by} commit(s) ahead but no file changes; nothing worth a review."
             close_pr "$number"
@@ -278,9 +250,7 @@ jobs:
           new_number=$(jq -r '.number' <<<"$output")
           echo "Opened #${new_number} (${ahead_by} updates)."
 
-          # A pull request created by GITHUB_TOKEN starts no workflow run, so it
-          # would carry no checks at all. Checks attach to a commit, not to a pull
-          # request, so a dispatched run on ${DEPS_BRANCH}'s head shows up as this
-          # pull request's own CI.
+          # A PR opened via the API starts no workflow run and would carry no
+          # checks; dispatch CI on deps's head so it shows up as this PR's own.
           gh workflow run "$CI_WORKFLOW" --repo "$REPO" --ref "$DEPS_BRANCH"
           echo "Dispatched ${CI_WORKFLOW} on ${DEPS_BRANCH} so the promotion has checks."

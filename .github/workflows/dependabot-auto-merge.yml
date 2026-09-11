@@ -3,28 +3,19 @@ name: Dependency auto-merge
 # Merges Dependabot pull requests into `deps` once CI is green on the commit
 # being merged. Nothing reaches main from here — see deps-promote.yml.
 #
-# The merge cannot happen from the pull_request event: a run raised by Dependabot
-# gets a read-only token. workflow_run executes in the context of the default
-# branch with write access, and runs the copy of this file that lives there.
+# Runs via workflow_run, not pull_request: a run raised by Dependabot gets a
+# read-only token, while workflow_run executes with write access using the
+# copy of this file on the default branch.
 #
-# There is NO checkout anywhere in this workflow. Every step talks to the API.
-# That is the whole reason no `ref:` pin is needed: there is no working tree and
-# no script file on disk for a push to `deps` to poison, so the write token can
-# never be pointed at code that came from the branch it writes to.
-#
-# There is no semver filter either. A bump that breaks the build fails CI and is
-# never merged — the same outcome as filtering patch/minor, by a shorter route,
-# and what does land is confined to `deps` and still faces the promotion review.
+# No checkout anywhere — every step is an API call, so there's no script on
+# disk for a push to `deps` to poison. No semver filter either: a breaking
+# bump just fails CI and stays unmerged, the same outcome by a shorter route.
 
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-  # The safety net. Every event-driven gate loses pull requests when the event
-  # carries nothing usable — GitHub still indexing a force-push, a rebase landing
-  # between CI and the merge — and nothing ever re-raises that event. This sweep
-  # is what makes a missed event cost a week instead of forever, and it is also
-  # the only thing that ever reports a queue that has quietly stopped moving.
+  # Safety net for events that never arrive (a force-push, a rebase mid-run).
   schedule:
     - cron: "37 6 * * 1"
   workflow_dispatch:
@@ -32,34 +23,29 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  # To start CI on `deps` and to hand off to the promotion workflow, below.
-  actions: write
+  actions: write # to start CI on `deps` and hand off to deps-promote.yml
 
-# Two sweeps at once would both read the same base and the second would merge
-# onto a branch that moved under it.
+# Avoids two sweeps merging onto a branch that moved under one of them.
 concurrency:
   group: dependency-auto-merge
   cancel-in-progress: false
 
 jobs:
   sweep:
-    # workflow_run fires for every CI run in the repository, main's included.
-    # There is only work to do after a pull request run.
+    # workflow_run fires for every CI run in the repo; only pull_request ones matter here.
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.DEPS_PAT }}
       REPO: ${{ github.repository }}
       DEPS_BRANCH: deps
       BASE_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
       CI_WORKFLOW: ci.yml
-      # How long an update may sit unmerged before this run turns red. A failed
-      # workflow run is the only notification an unattended repository actually
-      # gets — GitHub emails the owner. Everything else (a job summary, an
-      # annotation on a green run) is indistinguishable from silence.
+      # Days an update may sit unmerged before this run turns red — the one
+      # notification an unattended repo actually gets.
       STALE_DAYS: "14"
     steps:
       - name: Merge Dependabot pull requests that passed CI
@@ -88,13 +74,9 @@ jobs:
           now=$(date -u +%s)
           age_days() { echo $(( (now - $(date -u -d "$1" +%s)) / 86400 )); }
 
-          # Post a comment at most once per (pull request, marker).
-          #
-          # The existing comments are read into a variable and only then searched.
-          # `grep -q` exits on its first match, and under `set -o pipefail` the
-          # SIGPIPE that kills `gh` mid-write becomes the pipeline's exit status —
-          # so a marker that is present reads as absent, and the gate comments
-          # again on every single sweep.
+          # Posts a comment at most once per (PR, marker). Comments are read into a
+          # variable before grepping, not piped, so a SIGPIPE from `gh` mid-write
+          # under pipefail can't make a present marker read as absent.
           comment_once() {
             local number="$1" marker="$2" body="$3" existing
             existing=$(gh api --paginate "repos/$REPO/issues/${number}/comments?per_page=100" --jq '.[].body')
@@ -125,19 +107,14 @@ jobs:
             echo "#${number} ${title}"
             echo "   head ${head_sha}  age ${age}d"
 
-            # The listing already filtered on the author; re-reading it from the
-            # pull request is the check that decides, because that object is what
-            # gets merged. Neither workflow_run.actor nor the branch name is proof
-            # of authorship — the actor is whoever pushed last, and any writer can
-            # push a branch called dependabot/anything.
+            # Re-check authorship on the PR object itself; workflow_run.actor and
+            # the branch name both just reflect whoever pushed last.
             if [ "$author" != "dependabot[bot]" ]; then
               note "#${number}: author is ${author}, not dependabot[bot]; skipped"
               continue
             fi
 
-            # The conclusion of the newest CI run on this exact commit. Reading the
-            # workflow run rather than individual checks means "every job passed"
-            # without needing an aggregate job to say so.
+            # Conclusion of the newest CI run on this exact commit.
             conclusion=$(gh api \
               "repos/$REPO/actions/workflows/${CI_WORKFLOW}/runs?head_sha=${head_sha}&event=pull_request&per_page=1" \
               --jq '.workflow_runs[0].conclusion // "pending"')
@@ -163,9 +140,8 @@ jobs:
                 ;;
             esac
 
-            # `mergeable` is computed in the background; null means "ask again".
-            # Rendered with tostring rather than `// "null"`, which would report a
-            # genuine false as null and burn the retries on an answer already given.
+            # mergeable is computed async; null means retry. tostring (not `// "null"`)
+            # so a genuine false isn't mistaken for null and burns a retry for nothing.
             mergeable=null
             for _ in 1 2 3; do
               mergeable=$(gh api "repos/$REPO/pulls/${number}" --jq '.mergeable | tostring')
@@ -181,16 +157,9 @@ jobs:
               continue
             fi
 
-            # A pull request that edits a workflow file can only be merged while
-            # its head is level with the base. Behind it, GitHub composes the
-            # merged workflow file itself and refuses: "refusing to allow a GitHub
-            # App to create or update workflow ... without workflows permission".
-            #
-            # Both facts are read into variables first, for the SIGPIPE reason
-            # spelled out on comment_once: `gh ... | grep -q` under pipefail can
-            # report "no workflow files touched" for a pull request that touches
-            # nothing else, and the merge is then refused for the exact reason
-            # this check exists to avoid.
+            # A PR touching a workflow file can only merge while level with base —
+            # behind it, GitHub refuses ("without workflows permission"). Read into
+            # variables, not piped, for the same SIGPIPE reason as comment_once.
             behind_by=$(gh api "repos/$REPO/compare/${DEPS_BRANCH}...${head_sha}" --jq '.behind_by')
             changed=$(gh api --paginate "repos/$REPO/pulls/${number}/files?per_page=100" --jq '.[].filename')
 
@@ -202,10 +171,8 @@ jobs:
               continue
             fi
 
-            # --match-head-commit is the point of reading state fresh: CI passed on
-            # $head_sha, and between that run and this call the head can move (a
-            # Dependabot rebase, a push by anyone with write access). Without it the
-            # gate merges whatever the branch points at now, which nothing tested.
+            # --match-head-commit: merge exactly the commit CI passed, in case the
+            # head moved (a Dependabot rebase, another push) since that run.
             if gh pr merge "$number" \
                 --repo "$REPO" \
                 --squash \
@@ -221,11 +188,9 @@ jobs:
             fi
           done
 
-          # Security updates ignore `target-branch`. GitHub raises an advisory fix
-          # against the default branch whatever dependabot.yml says, so it never
-          # appears in the sweep above and can sit open indefinitely while routine
-          # bumps merge themselves. Nothing in a repository can redirect them; the
-          # least this can do is refuse to let them be invisible.
+          # Security-update PRs ignore target-branch and land on the default branch
+          # regardless, so they never appear in the sweep above and could sit
+          # invisible indefinitely — surface them instead.
           stranded=$(gh api --paginate \
             "repos/$REPO/pulls?state=open&base=${BASE_BRANCH}&per_page=100" \
             --jq '.[] | select(.user.login == "dependabot[bot]") | "\(.number)\t\(.created_at)\t\(.title)"')
@@ -245,12 +210,9 @@ jobs:
           fi
           exit "$stuck"
 
-      # A push made with GITHUB_TOKEN raises no events — GitHub suppresses them so
-      # a workflow cannot retrigger itself, and there is no exception for merges.
-      # So the merged result would never be built and the promotion would never be
-      # refreshed until the next schedule. workflow_dispatch is the documented
-      # exception: it always starts a run. The checks land on `deps`'s new head,
-      # which is also the promotion pull request's head, so they appear there.
+      # A GITHUB_TOKEN push raises no events, so without this explicit dispatch the
+      # merge would never get rebuilt or the promotion PR refreshed until the next
+      # schedule.
       - name: Build the merged result and refresh the promotion
         if: always() && steps.sweep.outputs.merged != '0' && steps.sweep.outputs.merged != ''
         run: |
