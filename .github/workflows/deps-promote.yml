@@ -22,10 +22,10 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+# Governs GITHUB_TOKEN, which this job does not use — every call authenticates
+# as DEPS_PAT, whose own scopes are the real limit. Kept at zero so the unused
+# token grants nothing.
+permissions: {}
 
 concurrency:
   group: dependency-promotion

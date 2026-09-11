@@ -20,10 +20,10 @@ on:
     - cron: "37 6 * * 1"
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
-  actions: write # to start CI on `deps` and hand off to deps-promote.yml
+# Governs GITHUB_TOKEN, which this job does not use — every call authenticates
+# as DEPS_PAT, whose own scopes are the real limit. Kept at zero so the unused
+# token grants nothing.
+permissions: {}
 
 # Avoids two sweeps merging onto a branch that moved under one of them.
 concurrency:

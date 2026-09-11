@@ -109,31 +109,50 @@ A green run genuinely means nothing needs attention.
 - **Actions are pinned to major tags, not commit SHAs.** A retargeted tag would
   execute in a job holding a write token. Pinning to SHAs closes that, and
   Dependabot still updates them; it is the obvious next hardening step.
-- **The promotion pull request carries a second, parked CI entry.** It is opened
-  by `GITHUB_TOKEN`, so GitHub registers a `pull_request` run for it and holds it
-  at `action_required` — *"1 workflow awaiting approval"*. It never turns green on
-  its own and there is no reason to approve it: checks attach to a commit, not to
-  a pull request, so the run this workflow dispatches on `deps`'s head is the real
-  one and shows up as the pull request's own green CI. **The merge itself is not
-  blocked** — the button is live and the banner says so. To make the extra entry
-  disappear, set a repository secret `DEPS_TOKEN` to a personal access token: the
-  pull request then comes from a real account, CI runs on it normally, and the
-  dispatch becomes unnecessary. Nothing requires it.
-- **`GITHUB_TOKEN` cannot write `.github/workflows/`.** A Dependabot pull request
-  that edits a workflow and is behind its base cannot be merged by the gate, so
-  it comments `@dependabot rebase` once and Dependabot, which has the
-  permission, brings the head level.
+- **The automation runs on a personal access token, not `GITHUB_TOKEN`.** See
+  *The token* below. Two limits disappeared with it and are recorded here so
+  nobody reintroduces them: `GITHUB_TOKEN` may not write `.github/workflows/`,
+  which left every action bump unmergeable whenever it sat behind its base; and
+  it could not ask Dependabot for help either, because `@dependabot rebase` from
+  `github-actions[bot]` is answered with *"Sorry, only users with push access can
+  use that command"*. A pull request opened by the token also no longer parks a
+  second CI entry at `action_required`, because it comes from a real account.
+
+## The token
+
+`dependabot-auto-merge.yml` and `deps-promote.yml` authenticate as the repository
+secret `DEPS_PAT`. Nothing else does: `ci.yml` and `security-audit.yml` never see
+it.
+
+That split is the reason a personal access token is acceptable here at all. Those
+two are the only workflows that check out the repository and run third-party code
+— `pip install`, `pip-audit`, the labs themselves. The two that hold the token do
+no checkout at all; every step is an API call, so there is no working tree and no
+script on disk that a push to `deps` could poison, and no package install that
+could read the environment. Grep for `actions/checkout` in either file and the
+count is zero. Keep it that way: adding a checkout step to a workflow that holds
+`DEPS_PAT` hands the token to whatever the update being tested chooses to run.
+
+What it must be able to do: read and write contents, read and write pull
+requests, read and write Actions, and write files under `.github/workflows/`.
+
+When it expires both workflows start failing with 401. The weekly sweep turns
+red, which is the intended notification, but that is up to seven days of a queue
+that has silently stopped. Renew it before the expiry date rather than after the
+first red run.
 
 ## Repository settings this depends on
 
 Not in the repository, so listed here:
 
-1. **Settings → Actions → General → Workflow permissions**: *Allow GitHub
-   Actions to create and approve pull requests* — ticked. Without it the
-   promotion pull request cannot be opened and the step fails with 403.
-   (The read-only default for `GITHUB_TOKEN` is fine: each workflow requests
-   what it needs via its own `permissions:` block.)
-2. **Settings → General → Pull Requests**: squash merging enabled.
+1. **Settings → Secrets and variables → Actions**: `DEPS_PAT` — see above.
+   Without it both automation workflows fail immediately with 401.
+2. **Settings → Actions → General → Workflow permissions**: *Allow GitHub
+   Actions to create and approve pull requests* — ticked.
+3. **Settings → General → Pull Requests**: squash merging enabled.
+4. **Settings → Advanced Security → Dependabot alerts**: enabled. Without it no
+   advisory is ever detected, and the sweep's check for a security update
+   stranded on main can never fire, because no such pull request is raised.
 
 ## Running it by hand
 
