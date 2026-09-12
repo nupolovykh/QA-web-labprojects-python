@@ -163,3 +163,49 @@ Actions → Dependency auto-merge → Run workflow  # sweeps; one log line per o
 
 Both are safe to run repeatedly: they read state and act only where there is
 something to do.
+
+## Verified end to end, 2026-09-12
+
+Run against a real update rather than a description of one. `pytest` was pinned
+one release back on purpose, because every other pin was already current and the
+only two available releases — `selenium` 4.49.0 and `ruff` 0.16.7 — sat inside
+Dependabot's cooldown window, so the queue was legitimately empty and nothing
+could be observed. The update Dependabot then raised restored the pin, so `main`
+ended where it started.
+
+| UTC | What happened |
+|---|---|
+| 13:57:34 | Direct push to `main` **rejected**: `GH006 … Changes must be made through a pull request` |
+| 13:58:07 | #24 opened with the downgrade |
+| 13:59:07 | CI on #24: 6/6 green, `mergeable_state: clean` |
+| 13:59:25 | #24 squash-merged, **no approval required** |
+| 13:59:17 | `Dependency promotion` on the push: `deps` fast-forwarded |
+| 13:59:19 | `Graph Update: pip in /.` — the graph refreshed |
+| 13:59:25 | CI on the push to `deps`: green |
+| 13:59:50 | `Dependency auto-merge` ×2: `skipped` — a `push` run, not a `pull_request` one |
+| 14:06:50 | `pip in /. - Update` — the update job, started by hand |
+| 14:08:02 | #25 opened: `build(deps): bump pytest from 9.1.0 to 9.1.1` → `deps` |
+| 14:08:24–32 | CI on #25's head `33aa8370`: 6/6 green |
+| 14:08:34 | `Dependency auto-merge` fired on the `workflow_run` |
+| 14:08:43 | #25 merged as `a1701136`, **`verified`**, author `dependabot[bot]` |
+| 14:08:45 | The gate dispatched CI on `deps` and handed off to the promotion |
+| 14:08:53 | Promotion read `deps is 'ahead' relative to main: 1 commit(s), 1 file(s) changed` |
+| 14:08:54 | #26 opened: `Dependency updates: promote deps to main`, `clean` |
+
+Two things the run settled that guesswork had not:
+
+- **A manifest change does not start an update job.** Merging #24 changed
+  `requirements.txt` and produced only a `Graph Update`. An update job starts on
+  the configured schedule, on a change to `.github/dependabot.yml`, or from
+  *Insights → Dependency graph → Dependabot → … → Check for updates* on the
+  manifest's row. Nothing else.
+- **The promotion pull request no longer carries a parked CI entry.** It is
+  opened by the account behind `DEPS_PAT`, so CI runs on it normally; the
+  `action_required` entry described above as a known limit is gone.
+
+One thing it exposed: 24 check runs on #26's head, four identical sets of six.
+CI on `deps` is now started four times over for the same commit — by the push,
+by the gate's dispatch, by the promotion's dispatch, and by the pull request
+itself. Both dispatches exist to give the promotion checks when `GITHUB_TOKEN`
+opened it and the `pull_request` run was parked. With `DEPS_PAT` that no longer
+happens, so both are redundant and only burn minutes.
