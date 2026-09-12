@@ -254,6 +254,26 @@ from the merge base's. The tip comparison is kept as a second route to the same
 verdict, because the merge base arrives inside the cached compare response and
 can itself be stale, while both branch tips are read fresh.
 
+Each fix was verified on the repository, not argued for:
+
+| UTC | What happened |
+|---|---|
+| 14:35:15 | #29 opened with fixes 1–3 |
+| 14:36:19–48 | CI on #29: 6/6 green, and **one** run on the commit instead of four |
+| 14:37:06 | #29 squash-merged |
+| 14:37:17 | The promotion run on that push opened **#30 with zero changed files** — defect 4 |
+| 14:39:52 | #31 opened with the merge-base fix |
+| 14:40:19 | CI on #31: green |
+| 14:40:35 | #31 squash-merged |
+| 14:40:36 | #30 closed — its diff was empty, so `main` moving made its changes trivially already present |
+| 14:40:44 | The promotion read `deps is 'diverged' relative to main: 3 commit(s), adds content: no.` |
+| 14:40:45 | `main already contains everything on deps.` → `Reset deps to main (712791f).` |
+| 14:40:46 | CI on the push to `deps`: one run, from the push itself |
+
+`deps` and `main` both stand at `712791f` with no open pull requests: the three
+commits of residue — the bump plus two `Merge branch 'main' into deps` — are
+gone, which is what defects 2 and 4 were about.
+
 The shape of all four is the same. The workflows were written against what the
 API documents; each defect was somewhere the documented behaviour and the
 observed behaviour differ, or where a case analysis was complete on paper and
