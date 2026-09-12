@@ -160,6 +160,12 @@ Not in the repository, so listed here:
    advisory is ever detected, and the sweep's check for a security update
    stranded on main can never fire, because no such pull request is raised.
 
+## Putting it in another repository
+
+`docs/porting-the-dependency-pipeline.md` — the four files, the four things that
+are repository-specific, the five settings that are not in the repository, and
+where each of the other repositories currently stands.
+
 ## Running it by hand
 
 ```
