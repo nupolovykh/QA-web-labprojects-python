@@ -43,18 +43,21 @@ commit on `deps` and the workflow resets nothing and turns red. The single
 exception is a commit that is provably `main`'s own amended-away tip (detected
 via `github.event.before` on the force-push), which is debris, not work.
 
-Every state the two branches can be in is handled, and "no diff" means the two
-tip commits point at the same tree — not that `compare` said zero files changed,
-which it can get wrong from cache:
+Every state the two branches can be in is handled. *Adds content* below means
+`deps`'s tip commit points at a different tree than the commit the two branches
+split from — not that `compare` reported files changed, which it gets wrong from
+cache, and not that `deps`'s tip differs from `main`'s, which stops being the
+same question the moment `main` moves on:
 
 | `main` vs `deps` | Cause | Action |
 |---|---|---|
 | identical | steady state | nothing |
-| `deps` ahead, real diff | updates collected | open/refresh the promotion PR |
-| `deps` ahead, no diff | realigned by hand (*Update branch*) | reset `deps` |
-| `deps` behind | promotion merged with a merge commit | fast-forward `deps` |
-| diverged, no diff | promotion squash- or rebase-merged | reset `deps` |
+| ahead, adds content | updates collected | open/refresh the promotion PR |
+| ahead, adds nothing | realigned by hand (*Update branch*) | reset `deps` |
+| behind | promotion merged with a merge commit | fast-forward `deps` |
+| diverged, adds nothing | promotion squash-merged, or `main` moved on | reset `deps` |
 | diverged, amended tip | `git commit --amend` on `main` | reset `deps`, bumps re-raised |
+| diverged, adds content, PR open | `main` moved on under real bumps | merge `main` in, keep the bumps |
 | diverged, real human commit | someone pushed to `deps` | refuse, run turns red |
 
 ## Why there is no checkout
@@ -206,10 +209,10 @@ Two things the run settled that guesswork had not:
   opened by the account behind `DEPS_PAT`, so CI runs on it normally; the
   `action_required` entry described above as a known limit is gone.
 
-### Three defects the run exposed, and the fixes
+### Four defects the run exposed, and the fixes
 
-None of these were visible from reading the workflows; all three needed a real
-update to walk through them.
+None of these were visible from reading the workflows; each needed a real update
+to walk through them. The fourth was in the fix for the second.
 
 **1. CI ran four times on the same commit.** 24 check runs on #26's head, four
 identical sets of six: one from the push to `deps`, one from the gate's
@@ -240,8 +243,20 @@ rather than refused: the trees matching means `main` already holds every byte of
 its result, so the refusal in the `diverged` branch — which exists to protect
 content `main` does not have — has nothing to protect.
 
-The shape of all three is the same. The workflows were written against what the
+**4. The tree comparison asked the wrong question.** The fix for 2 compared
+`deps`'s tip tree with `main`'s tip tree. That is only the same question as
+"is there anything to promote" while `main` stands still. Merging the fix itself
+moved `main`, and the promotion run on that push read *adds content: yes* for a
+branch that added nothing and opened #30 with an empty diff — the exact symptom
+it was written to remove, 19 minutes later. What decides it is the commit the two
+branches split from: `deps` has something to promote only if its tree differs
+from the merge base's. The tip comparison is kept as a second route to the same
+verdict, because the merge base arrives inside the cached compare response and
+can itself be stale, while both branch tips are read fresh.
+
+The shape of all four is the same. The workflows were written against what the
 API documents; each defect was somewhere the documented behaviour and the
 observed behaviour differ, or where a case analysis was complete on paper and
-short one branch in practice. That is the argument for running the thing rather
-than reviewing it.
+short one branch in practice. The fourth is the sharpest version of it: a fix
+that was correct about the mechanism, wrong about the condition, and looked fine
+in review. That is the argument for running the thing rather than reading it.
