@@ -252,14 +252,14 @@ jobs:
           fi
           exit "$stuck"
 
-      # A push made with GITHUB_TOKEN raises no events — GitHub suppresses them so
-      # a workflow cannot retrigger itself, and there is no exception for merges.
-      # So the merged result would never be built and the promotion would never be
-      # refreshed until the next schedule. workflow_dispatch is the documented
-      # exception: it always starts a run. The checks land on `deps`'s new head,
-      # which is also the promotion pull request's head, so they appear there.
-      - name: Build the merged result and refresh the promotion
+      # The promotion still has to be told, because it triggers on a push to the
+      # base branch and merging into `deps` is not one.
+      #
+      # CI is not dispatched here. A merge made with DEPS_PAT pushes `deps` as a
+      # real account, so the push event fires and CI runs on the new head by
+      # itself. Under GITHUB_TOKEN it did not — GitHub suppresses events from
+      # that token so a workflow cannot retrigger itself — which is why this step
+      # used to start both.
+      - name: Refresh the promotion
         if: always() && steps.sweep.outputs.merged != '0' && steps.sweep.outputs.merged != ''
-        run: |
-          gh workflow run "$CI_WORKFLOW" --repo "$REPO" --ref "$DEPS_BRANCH"
-          gh workflow run deps-promote.yml --repo "$REPO" --ref "$BASE_BRANCH"
+        run: gh workflow run deps-promote.yml --repo "$REPO" --ref "$BASE_BRANCH"

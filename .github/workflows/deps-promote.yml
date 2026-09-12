@@ -31,8 +31,8 @@ on:
     - cron: "23 6 * * *"
   workflow_dispatch:
   # A push to main is the amend case and the merged-promotion case: both need
-  # `deps` realigned. A push to `deps` by GITHUB_TOKEN raises no event, which is
-  # why the auto-merge gate dispatches this workflow directly instead.
+  # `deps` realigned. A merge into `deps` is not a push to main, so the
+  # auto-merge gate dispatches this workflow directly instead.
   push:
     branches: [main]
 
@@ -54,7 +54,6 @@ jobs:
       REPO: ${{ github.repository }}
       DEPS_BRANCH: deps
       BASE_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
-      CI_WORKFLOW: ci.yml
       # On a force-push to main — which is what `git commit --amend` produces —
       # this is the tip main had before the rewrite. It is the only reliable way
       # to tell "this human commit on deps is main's own amended-away history"
@@ -356,9 +355,8 @@ jobs:
           new_number=$(jq -r '.number' <<<"$output")
           echo "Opened #${new_number} (${ahead_by} updates)."
 
-          # A pull request created by GITHUB_TOKEN starts no workflow run, so it
-          # would carry no checks at all. Checks attach to a commit, not to a pull
-          # request, so a dispatched run on ${DEPS_BRANCH}'s head shows up as this
-          # pull request's own CI.
-          gh workflow run "$CI_WORKFLOW" --repo "$REPO" --ref "$DEPS_BRANCH"
-          echo "Dispatched ${CI_WORKFLOW} on ${DEPS_BRANCH} so the promotion has checks."
+          # No CI dispatch here. It was necessary while GITHUB_TOKEN opened this
+          # pull request, because a pull request created by that token starts no
+          # workflow run and the promotion carried no checks at all. DEPS_PAT
+          # opens it from a real account, so the pull_request run happens by
+          # itself and a dispatch only duplicates it.
