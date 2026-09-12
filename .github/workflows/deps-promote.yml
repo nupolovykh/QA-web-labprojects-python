@@ -90,8 +90,13 @@ jobs:
 
           echo "${DEPS_BRANCH} is '${status}' relative to ${BASE_BRANCH}: ${ahead_by} commit(s), ${files_changed} file(s) changed."
 
-          # Any commit on deps not written by a bot breaks the disposability assumption.
-          bot_filter='(.author.login // "") as $l | select($l != "dependabot[bot]" and $l != "github-actions[bot]")'
+          # Any commit on deps not written by a bot breaks the disposability
+          # assumption. Merge commits are the exception: the only thing that
+          # creates one here is this workflow bringing the base branch in through
+          # update-branch, which is attributed to whoever owns DEPS_PAT. Hand work
+          # on deps arrives as an ordinary single-parent commit, so excluding
+          # merges keeps the guard aimed at what it is for.
+          bot_filter='select((.parents | length) < 2) | (.author.login // "") as $l | select($l != "dependabot[bot]" and $l != "github-actions[bot]")'
           nonbot=$(jq -r "[ .commits[] | ${bot_filter} | \"\\(.sha[0:7]) \\(.commit.author.name): \\(.commit.message | split(\"\\n\")[0])\" ] | .[]" <<<"$compare")
           nonbot_shas=$(jq -r "[ .commits[] | ${bot_filter} | .sha ] | .[]" <<<"$compare")
 
@@ -175,14 +180,39 @@ jobs:
                 exit 0
               fi
 
-              # main moved while deps held unpromoted bot bumps — dropping them costs
-              # nothing, Dependabot re-raises them from the manifest on its next scan.
-              echo "::warning::${BASE_BRANCH} was rewritten while ${DEPS_BRANCH} held ${ahead_by} unpromoted bump(s)."
-              echo "Dropping them and re-cutting the branch; Dependabot re-raises them on its next scan."
-              jq -r '.commits[] | "  dropped: " + (.commit.message | split("\n")[0])' <<<"$compare"
-              reset_deps
-              close_pr "$number"
-              exit 0
+              # Everything left here is bot-only with real file changes, which is
+              # not a rewrite: a rewrite strands main's own previous tip on deps,
+              # and that tip is a human commit caught by the two branches above.
+              # So this is the ordinary case of main moving on while deps held
+              # bumps. It used to drop them and close the promotion pull request,
+              # which meant the queue restarted on every commit to main and, once
+              # security updates are enabled, on every security fix merged.
+              if [ -n "$FORCED_BEFORE" ]; then
+                echo "::warning::${BASE_BRANCH} was force-pushed while ${DEPS_BRANCH} held ${ahead_by} bump(s)."
+                echo "Re-cutting the branch; Dependabot re-raises them on its next scan."
+                jq -r '.commits[] | "  dropped: " + (.commit.message | split("\n")[0])' <<<"$compare"
+                reset_deps
+                close_pr "$number"
+                exit 0
+              fi
+
+              if [ -n "$number" ]; then
+                # Server-side merge of the base into the head, which is the only way
+                # to do it without a working tree — and there is deliberately no
+                # checkout in this workflow.
+                if gh api --method PUT "repos/$REPO/pulls/${number}/update-branch" >/dev/null 2>&1; then
+                  echo "Brought ${BASE_BRANCH} into ${DEPS_BRANCH} through #${number}; the ${ahead_by} bump(s) are intact."
+                  exit 0
+                fi
+                echo "::warning::Could not bring ${BASE_BRANCH} into ${DEPS_BRANCH} — a conflict, or the write was refused."
+                echo "Re-cutting the branch; Dependabot re-raises every bump on its next scan."
+                jq -r '.commits[] | "  dropped: " + (.commit.message | split("\n")[0])' <<<"$compare"
+                reset_deps
+                close_pr "$number"
+                exit 0
+              fi
+
+              echo "${BASE_BRANCH} moved on; opening the promotion for the ${ahead_by} bump(s) as they stand."
               ;;
 
             ahead) ;;

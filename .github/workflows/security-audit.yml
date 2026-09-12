@@ -35,6 +35,11 @@ jobs:
             requirements: lab11/requirements.txt
           - name: lab12
             requirements: lab12/requirements.txt
+          # Development-scoped, so the enabled Dependabot rule preset dismisses
+          # low-impact advisories against it and no alert is raised. Auditing it
+          # here is the only report it gets.
+          - name: dev
+            requirements: requirements-dev.txt
     steps:
       - uses: actions/checkout@v7
 
