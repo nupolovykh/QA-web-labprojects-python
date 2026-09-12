@@ -108,7 +108,13 @@ jobs:
 
           # Commits on deps that main does not have. Anything not written by a bot
           # means the disposability assumption no longer holds.
-          bot_filter='(.author.login // "") as $l | select($l != "dependabot[bot]" and $l != "github-actions[bot]")'
+          #
+          # Merge commits are exempt. The only thing that creates one on this
+          # branch is the update-branch call below, which GitHub attributes to
+          # whoever owns DEPS_PAT — a human name on a commit no human wrote. Hand
+          # work arrives as an ordinary single-parent commit, so excluding merges
+          # keeps the guard pointed at what it is actually for.
+          bot_filter='select((.parents | length) < 2) | (.author.login // "") as $l | select($l != "dependabot[bot]" and $l != "github-actions[bot]")'
           nonbot=$(jq -r "[ .commits[] | ${bot_filter} | \"\\(.sha[0:7]) \\(.commit.author.name): \\(.commit.message | split(\"\\n\")[0])\" ] | .[]" <<<"$compare")
           nonbot_shas=$(jq -r "[ .commits[] | ${bot_filter} | .sha ] | .[]" <<<"$compare")
 
@@ -199,18 +205,47 @@ jobs:
                 exit 0
               fi
 
-              # main was amended (or force-pushed) while deps held bumps that had
-              # not been promoted. Those bumps are bot commits, so they cost
-              # nothing to drop: Dependabot re-reads the manifest on ${DEPS_BRANCH}
-              # after the reset, finds the old versions and raises them again.
-              # Realigning is strictly better than leaving a branch nothing can
-              # merge and nothing can promote.
-              echo "::warning::${BASE_BRANCH} was rewritten while ${DEPS_BRANCH} held ${ahead_by} unpromoted bump(s)."
-              echo "Dropping them and re-cutting the branch; Dependabot re-raises them on its next scan."
-              jq -r '.commits[] | "  dropped: " + (.commit.message | split("\n")[0])' <<<"$compare"
-              reset_deps
-              close_pr "$number"
-              exit 0
+              # Everything reaching here is bot-only and carries real file changes,
+              # which means it is not a rewrite: a rewrite strands main's own
+              # previous tip on deps, and that tip is a human commit caught by the
+              # two branches above. So this is the ordinary case — main moved on
+              # while deps held unpromoted bumps.
+              #
+              # Dropping them here was wrong. It meant the update queue restarted
+              # from nothing on every single commit to main, and would do the same
+              # on every security fix once those are enabled. The bumps are kept
+              # instead, and main is brought into deps.
+              if [ -n "$FORCED_BEFORE" ]; then
+                # A genuine force-push whose stranded commits were all bot-authored:
+                # nothing identifies what main replaced, so re-cutting is the only
+                # safe repair. Dependabot raises the bumps again on its next scan.
+                echo "::warning::${BASE_BRANCH} was force-pushed while ${DEPS_BRANCH} held ${ahead_by} bump(s)."
+                echo "Re-cutting the branch; Dependabot re-raises them on its next scan."
+                jq -r '.commits[] | "  dropped: " + (.commit.message | split("\n")[0])' <<<"$compare"
+                reset_deps
+                close_pr "$number"
+                exit 0
+              fi
+
+              if [ -n "$number" ]; then
+                # A server-side merge of the base into the head. It has to go
+                # through the pull request, because that is the only way to merge
+                # without a working tree, and this workflow deliberately has none.
+                if gh api --method PUT "repos/$REPO/pulls/${number}/update-branch" >/dev/null 2>&1; then
+                  echo "Brought ${BASE_BRANCH} into ${DEPS_BRANCH} through #${number}; the ${ahead_by} bump(s) are intact."
+                  exit 0
+                fi
+                echo "::warning::Could not bring ${BASE_BRANCH} into ${DEPS_BRANCH} — a conflict, or the write was refused."
+                echo "Re-cutting the branch; Dependabot re-raises every bump on its next scan."
+                jq -r '.commits[] | "  dropped: " + (.commit.message | split("\n")[0])' <<<"$compare"
+                reset_deps
+                close_pr "$number"
+                exit 0
+              fi
+
+              # No promotion open yet, so there is nothing to update-branch
+              # through. Fall through and open it against main as it stands.
+              echo "${BASE_BRANCH} moved on; opening the promotion for the ${ahead_by} bump(s) as they stand."
               ;;
 
             ahead) ;;
