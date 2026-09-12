@@ -40,7 +40,6 @@ jobs:
       REPO: ${{ github.repository }}
       DEPS_BRANCH: deps
       BASE_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
-      CI_WORKFLOW: ci.yml
       # main's pre-rewrite tip on a force-push (what `git commit --amend`
       # produces) — the only way to tell "deps just holds main's replaced
       # history" from "someone committed to deps by hand". Empty otherwise.
@@ -84,11 +83,26 @@ jobs:
           compare=$(gh api "repos/$REPO/compare/${BASE_BRANCH}...${DEPS_BRANCH}")
           status=$(jq -r '.status' <<<"$compare")
           ahead_by=$(jq -r '.ahead_by' <<<"$compare")
-          # ahead_by counts commits, not content; files_changed is what matters for review.
-          files_changed=$(jq -r '(.files // []) | length' <<<"$compare")
           number=$(find_open_pr)
 
-          echo "${DEPS_BRANCH} is '${status}' relative to ${BASE_BRANCH}: ${ahead_by} commit(s), ${files_changed} file(s) changed."
+          # Whether the two branches hold the same content decides whether there
+          # is anything to review, and it is read from the commit objects rather
+          # than from the compare above. The compare endpoint is cached and can
+          # answer from before a merge that has already landed: measured here at
+          # 14:17:55 on 2026-09-12, when it still reported one changed file
+          # although both branches already carried the same requirements.txt.
+          # Acting on that stale answer opened a promotion pull request with an
+          # empty diff. A commit's tree SHA is a property of the commit, so
+          # reading it cannot be stale once the ref itself is current.
+          deps_sha=$(gh api "repos/$REPO/git/ref/heads/${DEPS_BRANCH}" --jq '.object.sha' 2>/dev/null || echo "")
+          same_tree=false
+          if [ -n "$deps_sha" ]; then
+            base_tree=$(gh api "repos/$REPO/git/commits/${base_sha}" --jq '.tree.sha')
+            deps_tree=$(gh api "repos/$REPO/git/commits/${deps_sha}" --jq '.tree.sha')
+            [ "$base_tree" = "$deps_tree" ] && same_tree=true
+          fi
+
+          echo "${DEPS_BRANCH} is '${status}' relative to ${BASE_BRANCH}: ${ahead_by} commit(s), same content: ${same_tree}."
 
           # Any commit on deps not written by a bot breaks the disposability
           # assumption. Merge commits are the exception: the only thing that
@@ -172,7 +186,7 @@ jobs:
                 exit 1
               fi
 
-              if [ "$files_changed" -eq 0 ]; then
+              if [ "$same_tree" = true ]; then
                 # Squash/rebase merge landed the same tree under different commits.
                 echo "${BASE_BRANCH} already contains everything on ${DEPS_BRANCH}."
                 reset_deps
@@ -224,8 +238,24 @@ jobs:
           esac
 
           # deps sits ahead of main with updates to promote.
-          if [ "$files_changed" -eq 0 ]; then
-            echo "${ahead_by} commit(s) ahead but no file changes; nothing worth a review."
+          if [ "$same_tree" = true ]; then
+            # Ahead in commits, identical in content. This is what a promotion
+            # leaves behind once the base has been brought in through
+            # update-branch: the bump is already on main, and what remains on
+            # deps is the merge that carried main into it. Resetting is not
+            # optional housekeeping — without it those merges accumulate one per
+            # cycle and the branch stops being the disposable, bot-only thing the
+            # rest of this workflow assumes.
+            echo "${ahead_by} commit(s) ahead but the content is identical; re-cutting the branch."
+            # Listed rather than refused. The refusal in the `diverged` branch
+            # exists because a human commit there carries content main does not
+            # have; here the trees match, so whatever these commits say, main
+            # already holds every byte of their result and nothing is lost.
+            if [ -n "$nonbot" ]; then
+              echo "::warning::Dropping non-bot commits whose content ${BASE_BRANCH} already has:"
+              echo "$nonbot" | sed 's/^/  /'
+            fi
+            reset_deps
             close_pr "$number"
             exit 0
           fi
@@ -280,7 +310,8 @@ jobs:
           new_number=$(jq -r '.number' <<<"$output")
           echo "Opened #${new_number} (${ahead_by} updates)."
 
-          # A PR opened via the API starts no workflow run and would carry no
-          # checks; dispatch CI on deps's head so it shows up as this PR's own.
-          gh workflow run "$CI_WORKFLOW" --repo "$REPO" --ref "$DEPS_BRANCH"
-          echo "Dispatched ${CI_WORKFLOW} on ${DEPS_BRANCH} so the promotion has checks."
+          # No CI dispatch here. It used to be necessary: a pull request opened by
+          # GITHUB_TOKEN starts no workflow run, so the promotion carried no checks
+          # of its own. DEPS_PAT opens it from a real account, so the pull_request
+          # run happens by itself. Measured with the dispatch still in place:
+          # twenty-four check runs on one commit, four identical sets of six.

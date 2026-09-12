@@ -43,12 +43,15 @@ commit on `deps` and the workflow resets nothing and turns red. The single
 exception is a commit that is provably `main`'s own amended-away tip (detected
 via `github.event.before` on the force-push), which is debris, not work.
 
-All four transitions are handled:
+Every state the two branches can be in is handled, and "no diff" means the two
+tip commits point at the same tree — not that `compare` said zero files changed,
+which it can get wrong from cache:
 
 | `main` vs `deps` | Cause | Action |
 |---|---|---|
 | identical | steady state | nothing |
-| `deps` ahead | updates collected | open/refresh the promotion PR |
+| `deps` ahead, real diff | updates collected | open/refresh the promotion PR |
+| `deps` ahead, no diff | realigned by hand (*Update branch*) | reset `deps` |
 | `deps` behind | promotion merged with a merge commit | fast-forward `deps` |
 | diverged, no diff | promotion squash- or rebase-merged | reset `deps` |
 | diverged, amended tip | `git commit --amend` on `main` | reset `deps`, bumps re-raised |
@@ -203,9 +206,42 @@ Two things the run settled that guesswork had not:
   opened by the account behind `DEPS_PAT`, so CI runs on it normally; the
   `action_required` entry described above as a known limit is gone.
 
-One thing it exposed: 24 check runs on #26's head, four identical sets of six.
-CI on `deps` is now started four times over for the same commit — by the push,
-by the gate's dispatch, by the promotion's dispatch, and by the pull request
-itself. Both dispatches exist to give the promotion checks when `GITHUB_TOKEN`
-opened it and the `pull_request` run was parked. With `DEPS_PAT` that no longer
-happens, so both are redundant and only burn minutes.
+### Three defects the run exposed, and the fixes
+
+None of these were visible from reading the workflows; all three needed a real
+update to walk through them.
+
+**1. CI ran four times on the same commit.** 24 check runs on #26's head, four
+identical sets of six: one from the push to `deps`, one from the gate's
+dispatch, one from the promotion's dispatch, and one from the pull request
+itself. Both dispatches were written for `GITHUB_TOKEN`, whose pushes raise no
+events at all, so without them the promotion pull request had no checks. With
+`DEPS_PAT` the push and the pull request both fire on their own, so the
+dispatches only duplicated work. Both are gone.
+
+**2. The promotion read a stale comparison and opened a redundant pull
+request.** `GET /repos/{repo}/compare/{base}...{head}` is served from cache and
+can answer from before a merge that has already landed, so a run triggered by
+the promotion merge itself saw `deps` still ahead and opened #28 for updates
+that were already on `main`. A commit's `tree.sha` cannot be stale, because it
+is part of the object it belongs to. The workflow now reads both branch tips
+through `git/ref` and compares `git/commits/{sha}.tree.sha`; identical trees
+mean identical content whatever `compare` claims.
+
+**3. `deps` stopped being re-cut.** The earlier fix for the `diverged` case
+covered `diverged`, not `ahead`. After the branch had been realigned with
+GitHub's *Update branch* button, `deps` sat at `ahead 3, behind 0` with zero
+files changed — one bump plus two `Merge branch 'main' into deps` commits — and
+the promotion classified it as `ahead`, so it tried to promote content that was
+already on `main` and left the merge commits to accumulate. The `ahead` branch
+now checks the tree comparison first: identical content means the branch is
+debris, so it is reset rather than promoted. A non-bot commit is logged there
+rather than refused: the trees matching means `main` already holds every byte of
+its result, so the refusal in the `diverged` branch — which exists to protect
+content `main` does not have — has nothing to protect.
+
+The shape of all three is the same. The workflows were written against what the
+API documents; each defect was somewhere the documented behaviour and the
+observed behaviour differ, or where a case analysis was complete on paper and
+short one branch in practice. That is the argument for running the thing rather
+than reviewing it.
