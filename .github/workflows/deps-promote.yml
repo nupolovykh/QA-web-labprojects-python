@@ -36,10 +36,10 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+# Governs GITHUB_TOKEN, which this job does not use — every call authenticates
+# as DEPS_PAT, whose own scopes are the real limit. Kept at zero so the unused
+# token grants nothing.
+permissions: {}
 
 concurrency:
   group: dependency-promotion
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.DEPS_PAT }}
       REPO: ${{ github.repository }}
       DEPS_BRANCH: deps
       BASE_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
