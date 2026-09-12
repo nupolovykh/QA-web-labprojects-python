@@ -210,11 +210,14 @@ jobs:
           fi
           exit "$stuck"
 
-      # A GITHUB_TOKEN push raises no events, so without this explicit dispatch the
-      # merge would never get rebuilt or the promotion PR refreshed until the next
-      # schedule.
-      - name: Build the merged result and refresh the promotion
+      # The promotion has to be told, because it triggers on a push to the base
+      # branch and merging into deps is not one.
+      #
+      # CI is not dispatched here. A merge performed with DEPS_PAT pushes deps as
+      # a real account, so the push event fires and ci.yml runs on the new head by
+      # itself; the dispatch only duplicated it. That was not true under
+      # GITHUB_TOKEN, whose pushes raise no events at all — which is why this step
+      # used to start both.
+      - name: Refresh the promotion
         if: always() && steps.sweep.outputs.merged != '0' && steps.sweep.outputs.merged != ''
-        run: |
-          gh workflow run "$CI_WORKFLOW" --repo "$REPO" --ref "$DEPS_BRANCH"
-          gh workflow run deps-promote.yml --repo "$REPO" --ref "$BASE_BRANCH"
+        run: gh workflow run deps-promote.yml --repo "$REPO" --ref "$BASE_BRANCH"
