@@ -56,7 +56,10 @@ jobs:
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Long enough to outlast a spent GraphQL budget. GitHub refills it on the
+    # hour, merge_pr below waits for that refill rather than giving up, and a job
+    # that is killed mid-wait would put the pull request back where it was.
+    timeout-minutes: 75
     env:
       GH_TOKEN: ${{ secrets.DEPS_PAT }}
       REPO: ${{ github.repository }}
@@ -81,6 +84,7 @@ jobs:
           note() { summary+=("$1"); printf '   %s\n' "$1"; }
 
           finish() {
+            declare -F budget >/dev/null && echo "Budget on exit: $(budget)"
             echo "merged=${merged}" >>"$GITHUB_OUTPUT"
             if [ "${#summary[@]}" -gt 0 ]; then
               {
@@ -94,6 +98,69 @@ jobs:
 
           now=$(date -u +%s)
           age_days() { echo $(( (now - $(date -u -d "$1" +%s)) / 86400 )); }
+
+          # What the account has left, read at both ends of the run. It costs
+          # nothing: /rate_limit is the one endpoint GitHub does not meter.
+          #
+          # It exists because the last stall was diagnosed by guesswork. Three
+          # green pull requests failed to merge with "API rate limit already
+          # exceeded for user ID", and nothing in the log said which budget had
+          # run out or who had spent it. REST and GraphQL are metered separately;
+          # the budget belongs to the account, not to the repository; and every
+          # token authenticating as that account draws on the same one. Two
+          # readings turn the next occurrence into a measurement instead of an
+          # argument.
+          budget() {
+            gh api rate_limit \
+              --jq '"REST \(.resources.core.remaining)/\(.resources.core.limit), GraphQL \(.resources.graphql.remaining)/\(.resources.graphql.limit)"' \
+              2>/dev/null || echo "unreadable"
+          }
+          echo "Budget on entry: $(budget)"
+
+          # Merge, and survive the account running out of GraphQL.
+          #
+          # `gh pr merge` is a GraphQL mutation, and when that budget is gone the
+          # merge is refused. The gate used to read the refusal as a verdict on
+          # the pull request: it went red and moved on, and since nothing
+          # re-raises an event for a pull request that has not changed, the next
+          # attempt was the weekly sweep. One exhausted hour cost a week.
+          #
+          # A spent budget is not an error, it is a wait. GitHub publishes when it
+          # refills, so wait for that and try again. The job is allowed to sit
+          # idle through it: `timeout-minutes` covers a full reset window, and in
+          # a public repository that runner time is free.
+          merge_pr() {
+            local number="$1" head_sha="$2" attempt out reset wait
+            for attempt in 1 2 3; do
+              if out=$(gh pr merge "$number" \
+                  --repo "$REPO" \
+                  --squash \
+                  --delete-branch \
+                  --match-head-commit "$head_sha" 2>&1); then
+                return 0
+              fi
+              printf '%s\n' "$out"
+
+              case "$out" in
+                *"rate limit"*|*"secondary rate"*|*"abuse detection"*) ;;
+                # Anything else is about this pull request and will not improve
+                # by being asked again.
+                *) return 1 ;;
+              esac
+
+              [ "$attempt" -eq 3 ] && return 1
+
+              reset=$(gh api rate_limit --jq '.resources.graphql.reset' 2>/dev/null || echo 0)
+              wait=$(( reset - $(date -u +%s) + 15 ))
+              # A secondary limit lifts in seconds and publishes no reset of its
+              # own, so the floor matters as much as the ceiling.
+              [ "$wait" -lt 30 ] && wait=30
+              [ "$wait" -gt 3600 ] && wait=3600
+              note "#${number}: GitHub is rate limiting this account; waiting ${wait}s"
+              sleep "$wait"
+            done
+            return 1
+          }
 
           # Post a comment at most once per (pull request, marker).
           #
@@ -213,11 +280,7 @@ jobs:
             # $head_sha, and between that run and this call the head can move (a
             # Dependabot rebase, a push by anyone with write access). Without it the
             # gate merges whatever the branch points at now, which nothing tested.
-            if gh pr merge "$number" \
-                --repo "$REPO" \
-                --squash \
-                --delete-branch \
-                --match-head-commit "$head_sha"; then
+            if merge_pr "$number" "$head_sha"; then
               note "#${number}: merged ${head_sha:0:7} into ${DEPS_BRANCH}"
               merged=$((merged + 1))
             else
