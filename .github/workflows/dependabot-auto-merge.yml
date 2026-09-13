@@ -99,6 +99,12 @@ jobs:
           now=$(date -u +%s)
           age_days() { echo $(( (now - $(date -u -d "$1" +%s)) / 86400 )); }
 
+          # Which account this run is speaking as. Two things below turn on it:
+          # whether Dependabot will obey a command at all, and whether a marker
+          # already on a pull request counts as an ask this gate made.
+          me=$(gh api user --jq '.login')
+          echo "Authenticated as ${me}."
+
           # What the account has left, read at both ends of the run. It costs
           # nothing: /rate_limit is the one endpoint GitHub does not meter.
           #
@@ -180,6 +186,54 @@ jobs:
           ${marker}" >/dev/null
           }
 
+          # Ask Dependabot to do something, and find out whether it agreed.
+          #
+          # Dependabot obeys a command only from an account with push access, and
+          # answers anyone else with "Sorry, only users with push access can use
+          # that command". This gate used to run under GITHUB_TOKEN, so every ask
+          # it ever made was refused — and because the marker recorded that an ask
+          # had happened rather than that it had been accepted, it never asked
+          # again. Two pull requests in Marketplace sat unmergeable for days
+          # behind a marker that documented a refusal.
+          #
+          # So: a marker counts only if this identity left it, which means a
+          # marker from an identity Dependabot rejected no longer silences
+          # anything. And a refused comment is deleted, which puts the ask back
+          # for the next sweep instead of leaving a record that it landed.
+          #
+          # An accepted command is answered with a force-push and no comment at
+          # all, so silence is the success case. A refusal arrives in seconds.
+          #
+          # 0 asked, 1 this identity already asked, 2 refused.
+          ask_dependabot() {
+            local number="$1" head_sha="$2" kind="$3" command="$4"
+            local marker="<!-- auto-merge:${kind}:${head_sha} -->" mine posted id created answer
+            mine=$(gh api --paginate "repos/$REPO/issues/${number}/comments?per_page=100" \
+              --jq ".[] | select(.user.login == \"${me}\") | .body")
+            if grep -qF "$marker" <<<"$mine"; then
+              return 1
+            fi
+
+            posted=$(gh api "repos/$REPO/issues/${number}/comments" -f "body=${command}
+
+          ${marker}" --jq '"\(.id) \(.created_at)"')
+            id=${posted%% *}
+            created=${posted#* }
+
+            for _ in 1 2; do
+              sleep 15
+              answer=$(gh api "repos/$REPO/issues/${number}/comments?per_page=100" \
+                --jq "[.[] | select(.user.login == \"dependabot[bot]\") | select(.created_at > \"${created}\") | .body] | join(\" \")")
+              case "$answer" in
+                *"push access"*|*"cannot be used"*)
+                  gh api --method DELETE "repos/$REPO/issues/comments/${id}" >/dev/null 2>&1 || true
+                  return 2
+                  ;;
+              esac
+            done
+            return 0
+          }
+
           numbers=$(gh api --paginate \
             "repos/$REPO/pulls?state=open&base=${DEPS_BRANCH}&per_page=100" \
             --jq '.[] | select(.user.login == "dependabot[bot]") | select(.draft | not) | .number')
@@ -249,8 +303,12 @@ jobs:
 
             if [ "$mergeable" != "true" ]; then
               note "#${number}: not cleanly mergeable (mergeable=${mergeable})"
-              comment_once "$number" "<!-- auto-merge:rebase:${head_sha} -->" "@dependabot rebase" \
-                && note "#${number}: asked Dependabot to rebase" || true
+              rc=0
+              ask_dependabot "$number" "$head_sha" rebase "@dependabot rebase" || rc=$?
+              case "$rc" in
+                0) note "#${number}: asked Dependabot to rebase" ;;
+                2) note "#${number}: Dependabot refused a rebase asked for by ${me}"; stuck=1 ;;
+              esac
               [ "$age" -ge "$STALE_DAYS" ] && stuck=1
               continue
             fi
@@ -270,8 +328,12 @@ jobs:
 
             if [ "$behind_by" -gt 0 ] && grep -q '^\.github/workflows/' <<<"$changed"; then
               note "#${number}: edits a workflow and is ${behind_by} behind; a merge would be refused"
-              comment_once "$number" "<!-- auto-merge:rebase:${head_sha} -->" "@dependabot rebase" \
-                && note "#${number}: asked Dependabot to rebase" || true
+              rc=0
+              ask_dependabot "$number" "$head_sha" rebase "@dependabot rebase" || rc=$?
+              case "$rc" in
+                0) note "#${number}: asked Dependabot to rebase" ;;
+                2) note "#${number}: Dependabot refused a rebase asked for by ${me}"; stuck=1 ;;
+              esac
               [ "$age" -ge "$STALE_DAYS" ] && stuck=1
               continue
             fi
