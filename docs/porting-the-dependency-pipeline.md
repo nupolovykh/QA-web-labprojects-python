@@ -23,26 +23,39 @@ branch by hand — the promotion's bootstrap path cuts it from the default branc
 on its first run, and doing it manually is how you end up with a branch cut from
 something else.
 
-## The four things that are repository-specific
+## The five things that are repository-specific
 
 1. **`workflows: ["…"]` in the gate's `workflow_run` trigger is the CI
    workflow's `name:`, not its filename.** Get this wrong and nothing reports an
    error: the gate simply never fires when CI finishes, and updates sit green
-   until the weekly cron sweeps them. It is `"CI"` here, `"CI Pipeline"` in
-   Smart-Plan, `"Build & Integration Smoke Test"` in MyDuoCards.
+   until the weekly cron sweeps them. It is `"CI"` here and in Webdev,
+   Marketplace and Desktop, `"CI Pipeline"` in Smart-Plan, and
+   `"Build & Integration Smoke Test"` in MyDuoCards.
 2. **`CI_WORKFLOW:` in the gate's `env` is the filename**, because it is read
-   through `/actions/workflows/{file}/runs`. `ci.yml` almost everywhere,
-   `build-and-smoke-test.yml` in MyDuoCards.
-3. **CI must run on `deps`.** Add the branch to the `push:` and `pull_request:`
-   filters of the CI workflow. Without it nothing on `deps` is ever green, so
-   nothing merges and the promotion has no checks — the pipeline looks installed
-   and does nothing.
-4. **`security-audit.yml` is ecosystem-specific.** `pip-audit` here;
-   `dotnet list package --vulnerable --include-transitive` for the .NET
-   repositories, `npm audit` for the Node ones, `composer audit` for Smart-Plan's
-   backend. One matrix entry per manifest, development-scoped ones included —
-   the Dependabot rule preset dismisses low-impact advisories there, so this
-   audit is the only report they get.
+   through `/actions/workflows/{file}/runs`. `ci.yml` everywhere except
+   MyDuoCards, which is `build-and-smoke-test.yml`.
+3. **CI must actually run on the updates.** Two shapes work:
+   `pull_request:` with no branch filter (Webdev, MyDuoCards — a pull request
+   into `deps` is built and a push to it is not, which is one run fewer), or
+   `deps` listed in both `push:` and `pull_request:` (Smart-Plan, Marketplace).
+   **Check `paths:` as well as `branches:`.** Desktop filtered on
+   `.github/workflows/ci.yml`, so a Dependabot pull request bumping an action
+   inside the automation workflows produced **no CI run at all** — and the gate
+   reads CI's conclusion, so it would have waited forever while the sweep went
+   red at fourteen days over a pull request that could never turn green. Any
+   path filter must match `.github/workflows/**`.
+4. **`security-audit.yml` is ecosystem-specific**, and sometimes it should not
+   be installed at all. `pip-audit` here; `dotnet list package --vulnerable
+   --include-transitive` for .NET, `npm audit` for Node, `composer audit` for
+   Smart-Plan's backend. One matrix entry per manifest, development-scoped ones
+   included. But a repository that already carries hundreds of open advisories
+   gets a workflow that is red from its first run and stays red, which trains
+   everyone to ignore it and destroys the property the rest of this design
+   rests on — that a green run means nothing needs attention. Webdev starts at
+   414 open advisories and the audit is deliberately left out there, with the
+   reason written into its own documentation rather than left as a silent gap.
+5. **A repository with package families needs `groups`, and the cap depends on
+   its target framework.** See the third blocker below.
 
 ## The five settings that are not in the repository
 
@@ -79,55 +92,91 @@ that command"*. Every action bump was therefore unmergeable. The price is that
 the token must never reach a workflow that checks out the repository; see
 *The token* in `docs/dependency-updates.md`.
 
-## Two blockers in the repositories as they stand
+## Three blockers, all of them measured
 
-**A CI job that commits back to the branch it ran on.** Marketplace's `ci.yml`
-and Desktop's `ci.yml` both end a screenshot job with
+**1. A CI job that commits back to the branch it ran on.** Marketplace's and
+Desktop's `ci.yml` both ended a screenshot job with
 `git config user.name "nupolovykh"` … `git push origin "HEAD:${TARGET_REF}"`,
-with no condition limiting it to the default branch — and Marketplace's CI
-already runs on `deps`. That lands a commit on `deps` with real file changes and
-a human author, which is exactly what the promotion's guard refuses to reset, so
-the promotion goes red and stays red. Correctly. Restrict that job to the
-default branch before switching the pipeline on.
+with no condition on the branch. On `deps` that lands a commit with real file
+changes and a human name — exactly what the promotion's guard refuses to reset,
+correctly, because it cannot tell such a commit from someone's real work. The
+job is fenced off instead:
 
-**Smart-Plan and Marketplace run generation 1.** Their `deps-promote.yml` is
-byte for byte the same file and predates everything verified here. They inherit,
-in order of how much it matters:
+```yaml
+    if: >-
+      (github.head_ref || github.ref_name) != 'deps' &&
+      github.actor != 'dependabot[bot]'
+```
 
-- `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`, so the workflow-file problem above is
-  still live in both;
-- the decision taken from the file count in a cached `/compare` rather than from
-  tree SHAs, and measured against the tip of the default branch rather than the
-  merge base;
-- `deps` never re-cut when it is ahead in commits but adds no content, so merge
-  commits accumulate one per cycle;
-- every divergence treated as a rewrite, so unpromoted bumps are dropped
-  whenever anything lands on the default branch;
-- a bot filter with no merge-commit exemption, which turns the guard red on the
-  workflow's own merge;
-- two redundant CI dispatches.
+Fence the job, never loosen the guard — the guard is the only thing protecting
+the branch contract.
 
-Porting to them is an upgrade, not an install: replace both workflow files with
-this repository's current versions, add `DEPS_PAT`, and check what their `deps`
-branches have accumulated in the meantime.
+This also leaves a trap behind. Desktop's old integration branch had **already**
+collected such commits, so `deps` cut from it carried stale copies of three
+screenshots and of `ci.yml`. The promotion opened, GitHub reported `dirty`
+(binary files changed on both sides do not three-way merge), and the next run
+did the right thing on its own: `update-branch` failed on the conflict, the
+fallback reset the branch and closed the pull request. One action bump was lost
+and Dependabot will raise it again. That is the branch contract working, not a
+failure — but expect it when the old branch has been written to by CI.
+
+**2. Package families have to be grouped, and the cap is a target-framework
+fact.** Measured in Marketplace: `Microsoft.EntityFrameworkCore.Design` 9.0.20
+pulls `Relational` 9.0.20, which demands `EntityFrameworkCore >= 9.0.20` while
+the project still pinned 8.0.30 — thirteen checks red. And
+`Extensions.DependencyInjection` moved in one project and not in another that
+references it, so the restore refused on both. Ungrouped, that is not one
+blocked bump but a queue that cannot drain, because every pull request in it
+breaks the same way.
+
+The version cap is not caution, it is arithmetic, and it differs per repository
+because the target frameworks differ. Check every `.csproj` rather than assuming:
+
+| Repository | Projects | Highest EF Core that restores | Cap |
+|---|---|---|---|
+| Marketplace | `net8.0` | 9.x | `>= 10.0.0` |
+| MyDuoCards | `net8.0` | 9.x | `>= 10.0.0` |
+| Desktop | `net6.0`, mostly `net6.0-windows` | 7.x | `>= 8.0.0` |
+
+`Microsoft.Extensions.*` is not capped in any of them: its 8.x, 9.x and 10.x
+still ship `netstandard2.0` or `net8.0` assets.
+
+**3. The old integration branch usually holds unpromoted work.** Every
+repository that had been routing Dependabot at `security-features-main` had
+updates merged there with no way out: eleven in Webdev, four in MyDuoCards, one
+in Desktop, and Smart-Plan and Marketplace had ten and three waiting on a
+promotion that could not complete. Cut `deps` from **that branch**, not from the
+default branch:
+
+```bash
+git push origin origin/security-features-main:refs/heads/deps
+```
+
+The promotion's bootstrap creates `deps` from the default branch when it is
+missing, which would throw all of that away. Dependabot would raise it again
+eventually, but there is no reason to spend the cycle.
 
 ## Where each repository stands
 
-| Repository | Pipeline | `deps` | Dependabot routed to | What it needs |
-|---|---|---|---|---|
-| QA-web (this one) | generation 2, verified twice | level with `main` | `deps` | nothing |
-| Smart-Plan | generation 1 | exists, diverged | `deps` | upgrade both workflows, `DEPS_PAT`, settings |
-| Marketplace | generation 1 | exists, diverged | `deps` | the same, **plus** guard the screenshot job |
-| Webdev | gate only, no promotion | none | `security-features-main` | full install, retarget Dependabot |
-| Desktop | gate only, no promotion | none | `security-features-main` | full install, retarget, guard the screenshot job |
-| MyDuoCards | gate only, no promotion | none | `security-features-main` | full install, retarget, CI name and filename differ |
-| EmployMe | none (`build.yml`, `labels.yml`) | none | — | out of scope while the project is in active development: this pipeline is built for repositories nobody is watching |
-| HB-AI-Interface, WinAPI | no workflows at all | none | — | needs CI before it needs a dependency pipeline |
+All six are installed and ran a full cycle on 2026-09-12/13. Twenty-eight
+updates that had been stuck reached `main`.
 
-`security-features-main` is the dead end this exercise came out of: three
-repositories still point Dependabot at a branch with no promotion behind it, so
-their updates land there and stop. Retargeting to `deps` is part of the install,
-not a separate task.
+| Repository | Ecosystem | Landed | What was specific |
+|---|---|---|---|
+| QA-web | pip | — | the reference; the design was measured here first |
+| Smart-Plan | composer, npm | 10 | upgrade from generation 1; CI named `CI Pipeline` |
+| Webdev | npm ×6 | 11 | `deps` cut from the old branch; audit deliberately omitted at 414 advisories |
+| Marketplace | nuget | 3 | screenshot job fenced; EF Core grouped, capped `>= 10` |
+| MyDuoCards | nuget | 4 | CI name **and** filename both differ; EF Core grouped, capped `>= 10` |
+| Desktop | nuget ×15 | 0 | `paths:` filter excluded the workflows; screenshot job fenced; EF Core capped `>= 8` for `net6.0`; stale screenshots on the old branch forced one reset |
+
+`security-features-main` is dead in all three repositories that used it. Nothing
+targets it and nothing reads it; the branches are still there and can be deleted
+whenever.
+
+EmployMe is out of scope while it is in active development — this pipeline is
+built for repositories nobody is watching. HB-AI-Interface and WinAPI have no CI
+at all, and need that before they need this.
 
 ## Order of work, per repository
 
@@ -150,7 +199,7 @@ not a separate task.
 Six things, all readable from the Actions log rather than inferred:
 
 1. a Dependabot pull request opens against `deps`, not the default branch;
-2. CI runs on it once;
+2. CI runs on it;
 3. the gate merges it and the log names the commit CI passed on;
 4. the promotion opens one pull request with a **non-empty** diff;
 5. after a human merges that, the promotion's next run reports either
@@ -158,5 +207,29 @@ Six things, all readable from the Actions log rather than inferred:
    the promotion pull request;
 6. `deps` and the default branch end level, with no open pull requests.
 
-Point 4 is the one that catches a bad port. An empty promotion means the branch
-comparison is wrong, and that shape cost two rounds of fixes here.
+Point 4 is the one that catches a bad port, and point 5 the one that catches a
+bad comparison. Both were caught that way here.
+
+## When the comparison says something you do not believe
+
+`deps-promote.yml` prints its inputs before deciding. Read that group before
+reasoning about anything:
+
+```
+branch comparison inputs
+  split point 5b92a5b… tree dafa9fe678bb8ca98a23e1e3eb5dc4be7f1a3853
+  main        67d55a4… tree 65f7b05f4a567199d256e29d4e82326f9d5e53cc
+  deps        44bd258… tree dafa9fe678bb8ca98a23e1e3eb5dc4be7f1a3853
+  verdict: nothing
+  changed by deps: .github/workflows/ci.yml  split=72ecdccc main=ef84f978 deps=cfcc22ef
+```
+
+Three tree SHAs and one line per path it considered changed. That block was
+added after an hour of arguing with a branch that kept merging `main` into
+itself; it gave the answer on its first run — the verdict was being printed as
+`"nothing"`, quotes included, because `jq` was called without `-r`, so the
+comparison never matched and the branch could never be reset. The same block
+then explained Desktop's conflict in one line: the old integration branch was
+carrying stale screenshots.
+
+Keep it. An automation nobody watches has to be able to explain itself.
