@@ -16,7 +16,7 @@ produced a failure that took a while to diagnose.
 | `.github/dependabot.yml` | routes every ecosystem to `deps` via `target-branch` |
 | `.github/workflows/dependabot-auto-merge.yml` | the gate: merges a Dependabot pull request into `deps` once CI is green **on that exact commit** |
 | `.github/workflows/deps-promote.yml` | the promotion: opens one human-merged pull request `deps` → default branch, and realigns `deps` afterwards |
-| `.github/workflows/security-audit.yml` | weekly advisory scan, deliberately outside CI |
+| `.github/workflows/security-audit.yml` | weekly advisory scan, deliberately outside CI; reports in the run summary, never as an issue or a red run |
 
 Copy them, then change the four things below. Do **not** create the `deps`
 branch by hand — the promotion's bootstrap path cuts it from the default branch
@@ -44,16 +44,14 @@ something else.
    reads CI's conclusion, so it would have waited forever while the sweep went
    red at fourteen days over a pull request that could never turn green. Any
    path filter must match `.github/workflows/**`.
-4. **`security-audit.yml` is ecosystem-specific**, and sometimes it should not
-   be installed at all. `pip-audit` here; `dotnet list package --vulnerable
-   --include-transitive` for .NET, `npm audit` for Node, `composer audit` for
-   Smart-Plan's backend. One matrix entry per manifest, development-scoped ones
-   included. But a repository that already carries hundreds of open advisories
-   gets a workflow that is red from its first run and stays red, which trains
-   everyone to ignore it and destroys the property the rest of this design
-   rests on — that a green run means nothing needs attention. Webdev starts at
-   414 open advisories and the audit is deliberately left out there, with the
-   reason written into its own documentation rather than left as a silent gap.
+4. **`security-audit.yml` is ecosystem-specific.** `pip-audit` here;
+   `dotnet list package --vulnerable --include-transitive` for .NET, `npm audit`
+   for Node, `composer audit` for Smart-Plan's backend. Development-scoped
+   manifests included. It reports into the run summary and never fails the run,
+   so it is safe to install even in a repository that already carries hundreds
+   of open advisories. For .NET it is the only place transitive advisories show
+   up: without a NuGet lock file the dependency graph lists direct packages only,
+   so Dependabot alerts cannot see them.
 5. **A repository with package families needs `groups`, and the cap depends on
    its target framework.** See the third blocker below.
 
@@ -73,9 +71,9 @@ fails differently for each one that is missing.
    request and says so in the log.
 3. **General → Pull Requests → squash merging enabled.** The gate merges with
    `--squash`.
-4. **Advanced Security → Dependabot alerts enabled.** Absent, no advisory is
-   detected and the sweep's check for a security update stranded on the default
-   branch can never fire, because no such pull request is raised.
+4. **Advanced Security → Dependabot alerts enabled, Dependabot security updates
+   disabled.** Alerts put advisories in the Security tab. Security updates
+   always target the default branch and would bypass `deps`, so they stay off.
 5. **Branch protection on the default branch: require a pull request, and tick
    *Do not allow bypassing the above settings*.** The second half is what
    actually stops a direct push by an administrator. Leave *Require approvals*
