@@ -9,7 +9,9 @@
 #
 # Packages that must move together get their own group across all update
 # types, so a major of one never arrives without the others: `pytest` with its
-# `pytest-*` plugins. A package matches the first group that lists it.
+# `pytest-*` plugins. minor-and-patch excludes the family's patterns: without
+# that, one scan could raise the same line in both groups, and whichever pull
+# request merged second would conflict.
 #
 # 99 means "no limit". Every update lands on `deps`, where a red one blocks
 # nothing. The key cannot be dropped to mean "unlimited": omitting it applies
@@ -35,6 +37,7 @@ updates:
         patterns: ["pytest", "pytest-*"]
       minor-and-patch:
         patterns: ["*"]
+        exclude-patterns: ["pytest", "pytest-*"]
         update-types: ["minor", "patch"]
 
   - package-ecosystem: "pip"

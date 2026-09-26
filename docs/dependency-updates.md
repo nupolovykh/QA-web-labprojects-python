@@ -94,8 +94,10 @@ build blocks only itself while the group still lands.
 
 Packages that have to move together — here `pytest` and its `pytest-*` plugins —
 get a group of their own across all update types, so a major of one never
-arrives without the others. A package goes to the first group that matches it,
-so family groups are listed before `minor-and-patch`.
+arrives without the others. `minor-and-patch` excludes the family's patterns, so
+the two groups never edit the same line in one scan — two pull requests of one
+scan touching the same line would conflict, and a conflicting pull request gets
+no CI run.
 
 ## Why the vulnerability audit is not in CI
 
